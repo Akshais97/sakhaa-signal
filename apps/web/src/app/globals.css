@@ -1,0 +1,181 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    /* Primitives - Ink / Warm Neutrals */
+    --p-ink-0: #FFFFFF;
+    --p-ink-25: #FAFAF8;
+    --p-ink-50: #F3F2EF;
+    --p-ink-100: #E7E5E0;
+    --p-ink-200: #D4D1CA;
+    --p-ink-300: #B4B0A7;
+    --p-ink-400: #8A867C;
+    --p-ink-500: #615D55;
+    --p-ink-600: #46433C;
+    --p-ink-700: #2E2B26;
+    --p-ink-800: #211F1B;
+    --p-ink-850: #1A1815;
+    --p-ink-900: #121110;
+    --p-ink-950: #0B0A09;
+
+    /* Primitives - Iris (Primary) */
+    --p-iris-50: #EEEDFE;
+    --p-iris-100: #DAD8FD;
+    --p-iris-200: #BBB6FB;
+    --p-iris-300: #9A92F8;
+    --p-iris-400: #7C70F6;
+    --p-iris-500: #6557F5;
+    --p-iris-600: #5343E8;
+    --p-iris-700: #4434C9;
+    --p-iris-800: #372BA1;
+    --p-iris-900: #2A2178;
+
+    /* Primitives - Ember (Creative Accent) */
+    --p-ember-300: #FFB089;
+    --p-ember-400: #FF8A5C;
+    --p-ember-500: #FF6B3D;
+    --p-ember-600: #E8501F;
+    --p-ember-700: #BF3D12;
+
+    /* Status Primitives (Light mode seeds) */
+    --status-neutral-fg: #615D55;
+    --status-neutral-bg: #F3F2EF;
+    --status-queued-fg: #3F5B7A;
+    --status-queued-bg: #E8EFF6;
+    --status-running-fg: #0E6E8C;
+    --status-running-bg: #DDF1F6;
+    --status-success-fg: #1F7A4D;
+    --status-success-bg: #E2F4EA;
+    --status-warning-fg: #9A6700;
+    --status-warning-bg: #FBF1DA;
+    --status-error-fg: #B42318;
+    --status-error-bg: #FCEBEA;
+    --status-blocked-fg: #8A2BBE;
+    --status-blocked-bg: #F4EAFB;
+    --status-unknown-fg: #5B5168;
+    --status-unknown-bg: #EFEBF3;
+
+    /* Semantic mapping - Light Mode (Default) */
+    --background: var(--p-ink-25);
+    --foreground: var(--p-ink-800);
+    --surface-base: var(--p-ink-25);
+    --surface-raised: var(--p-ink-0);
+    --surface-sunken: var(--p-ink-50);
+    --surface-media: #1B1B1B;
+    --border-subtle: var(--p-ink-100);
+    --border-strong: var(--p-ink-200);
+    --text-primary: var(--p-ink-800);
+    --text-secondary: var(--p-ink-400);
+    --text-tertiary: var(--p-ink-300);
+
+    --interactive-primary-bg: var(--p-iris-500);
+    --interactive-primary-bg-hover: var(--p-iris-600);
+    --interactive-primary-fg: #FFFFFF;
+    --focus-ring: var(--p-iris-500);
+    --accent-creative: var(--p-ember-500);
+    --accent-creative-hover: var(--p-ember-600);
+
+    --font-display: "Clash Display", "Satoshi", ui-sans-serif, system-ui, sans-serif;
+    --font-text: "Satoshi", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  /* Dark mode overrides (Recommended default for authenticated creative space) */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: var(--p-ink-850);
+      --foreground: #F3F2EF;
+      --surface-base: var(--p-ink-850);
+      --surface-raised: var(--p-ink-700);
+      --surface-sunken: var(--p-ink-900);
+      --border-subtle: #2E2B26;
+      --border-strong: #46433C;
+      --text-primary: #F3F2EF;
+      --text-secondary: #B4B0A7;
+      --text-tertiary: #8A867C;
+
+      --interactive-primary-bg: var(--p-iris-400);
+      --interactive-primary-bg-hover: var(--p-iris-300);
+      --interactive-primary-fg: #14121C;
+      --focus-ring: var(--p-iris-300);
+      --accent-creative: var(--p-ember-400);
+      --accent-creative-hover: var(--p-ember-300);
+
+      /* Dark mode status seeds */
+      --status-neutral-fg: #B4B0A7;
+      --status-queued-fg: #8FB2D6;
+      --status-running-fg: #5FC6DD;
+      --status-success-fg: #5BD08C;
+      --status-warning-fg: #E8B84B;
+      --status-error-fg: #F2786C;
+      --status-blocked-fg: #C98AE8;
+      --status-unknown-fg: #B8A6CC;
+
+      --status-neutral-bg: rgba(180, 176, 167, 0.1);
+      --status-queued-bg: rgba(143, 178, 214, 0.1);
+      --status-running-bg: rgba(95, 198, 221, 0.1);
+      --status-success-bg: rgba(91, 208, 140, 0.1);
+      --status-warning-bg: rgba(232, 184, 75, 0.1);
+      --status-error-bg: rgba(242, 120, 108, 0.1);
+      --status-blocked-bg: rgba(201, 138, 232, 0.1);
+      --status-unknown-bg: rgba(184, 166, 204, 0.1);
+    }
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-text);
+  }
+
+  /* Utility font bindings */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+
+  code, pre, .mono-data {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Custom UI Components mapping for Studio Instrument look & feel */
+.bg-graphite-base { background-color: var(--surface-base); }
+.bg-graphite-raised { background-color: var(--surface-raised); }
+.bg-graphite-sunken { background-color: var(--surface-sunken); }
+.border-graphite-subtle { border-color: var(--border-subtle); }
+.border-graphite-strong { border-color: var(--border-strong); }
+
+.text-graphite-primary { color: var(--text-primary); }
+.text-graphite-secondary { color: var(--text-secondary); }
+.text-graphite-tertiary { color: var(--text-tertiary); }
+
+.bg-iris-primary {
+  background-color: var(--interactive-primary-bg);
+  color: var(--interactive-primary-fg);
+}
+.bg-iris-primary:hover {
+  background-color: var(--interactive-primary-bg-hover);
+}
+
+.bg-ember-creative {
+  background-color: var(--accent-creative);
+  color: var(--p-ink-950);
+}
+.bg-ember-creative:hover {
+  background-color: var(--accent-creative-hover);
+}
+
+/* Diagonal hatch styling for the unknown timeout state */
+.unknown-diagonal-hatch {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 4px,
+    rgba(184, 166, 204, 0.15) 4px,
+    rgba(184, 166, 204, 0.15) 8px
+  );
+  border-style: dashed;
+}

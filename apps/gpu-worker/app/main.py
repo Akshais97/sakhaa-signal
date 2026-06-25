@@ -1,0 +1,118 @@
+import os
+import uuid
+from typing import Dict, Any, Optional
+from app.pipeline import run_pipeline
+from fastapi import FastAPI, HTTPException, Header, Depends, BackgroundTasks
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel
+
+app = FastAPI(title="TribeV2 GPU Worker API", version="1.0.0")
+
+# Security
+security = HTTPBearer()
+
+def get_worker_token() -> str:
+    token = os.environ.get("GPU_WORKER_TOKEN")
+    if not token:
+        # Default fallback for local testing in development
+        return "dev-worker-token-123"
+    return token
+
+def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    expected_token = get_worker_token()
+    if credentials.credentials != expected_token:
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized: Invalid GPU worker token"
+        )
+    return credentials.credentials
+
+# Schemas
+class JobPayload(BaseModel):
+    job_id: str
+    video_object_key: str
+    project_name: str
+    video_name: str
+    cluster_mode: str = "both" # 15, 17, or both
+    output_mode: str = "full_export" # scoring_only, training_export_only, scoring_and_training_export, full_export
+    run_llm_explanation: bool = True
+    brand_name: Optional[str] = None
+    campaign_name: Optional[str] = None
+    target_audience: Optional[str] = None
+    creative_objective: Optional[str] = None
+
+# In-memory job state store for development
+jobs_db: Dict[str, Dict[str, Any]] = {}
+
+def process_job_async(job_id: str, payload: JobPayload):
+    def update_status(state: str):
+        jobs_db[job_id]["status"] = state
+
+    try:
+        jobs_db[job_id]["status"] = "AUTHORIZED"
+        result = run_pipeline(job_id, payload.model_dump(), update_status)
+        
+        # Set final completion state and manifest
+        jobs_db[job_id]["status"] = "COMPLETED"
+        jobs_db[job_id]["manifest"] = result.get("manifest")
+    except Exception as e:
+        jobs_db[job_id]["status"] = "FAILED"
+        jobs_db[job_id]["error_message"] = str(e)
+
+# Endpoints
+@app.get("/health")
+def health_check():
+    import torch
+    cuda_available = torch.cuda.is_available()
+    return {
+        "status": "healthy",
+        "cuda_available": cuda_available,
+        "device_name": torch.cuda.get_device_name(0) if cuda_available else "CPU",
+        "pipeline_version": "tribev2-ad-scorer-v1.0"
+    }
+
+@app.post("/api/gpu/jobs/run")
+def run_job(
+    payload: JobPayload,
+    background_tasks: BackgroundTasks,
+    token: str = Depends(verify_token)
+):
+    job_id = payload.job_id
+    if job_id in jobs_db:
+        raise HTTPException(status_code=400, detail="Job ID already exists")
+    
+    # Initialize state
+    jobs_db[job_id] = {
+        "status": "RECEIVED",
+        "payload": payload.model_dump(),
+        "error_message": None,
+        "manifest": None
+    }
+    
+    # Trigger job in background
+    background_tasks.add_task(process_job_async, job_id, payload)
+    
+    return {
+        "job_id": job_id,
+        "status": "RECEIVED",
+        "message": "Job successfully queued on GPU worker."
+    }
+
+@app.get("/api/gpu/jobs/{job_id}")
+def get_job_status(job_id: str, token: str = Depends(verify_token)):
+    if job_id not in jobs_db:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return jobs_db[job_id]
+
+@app.get("/api/gpu/jobs/{job_id}/manifest")
+def get_job_manifest(job_id: str, token: str = Depends(verify_token)):
+    if job_id not in jobs_db:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    job_info = jobs_db[job_id]
+    if job_info["status"] != "COMPLETED":
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Manifest not available. Job is in state: {job_info['status']}"
+        )
+    return job_info["manifest"]

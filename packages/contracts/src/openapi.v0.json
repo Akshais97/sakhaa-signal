@@ -1,0 +1,1136 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Sakhaa Forge V0 API",
+    "version": "0.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3001/api/v0"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "Liveness is available without exposing secrets."
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "operationId": "getReadiness",
+        "responses": {
+          "200": {
+            "description": "All local dependencies are available."
+          },
+          "503": {
+            "description": "At least one local dependency is unavailable."
+          }
+        }
+      }
+    },
+    "/version": {
+      "get": {
+        "operationId": "getVersion",
+        "responses": {
+          "200": {
+            "description": "Build and version metadata."
+          }
+        }
+      }
+    },
+    "/workspaces": {
+      "get": {
+        "operationId": "listWorkspaces",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authenticated user's workspace memberships."
+          },
+          "401": {
+            "description": "Authentication is required."
+          }
+        }
+      },
+      "post": {
+        "operationId": "createWorkspace",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "description": "Stable request identity used to replay the durable response or reject changed input."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Workspace created for the authenticated user."
+          },
+          "400": {
+            "description": "Idempotency-Key is required for this externally visible mutation."
+          },
+          "401": {
+            "description": "Authentication is required before tenant state is created."
+          },
+          "409": {
+            "description": "The idempotency key was already used with different input."
+          },
+          "422": {
+            "description": "Request validation failed before tenant state was created."
+          }
+        }
+      }
+    },
+    "/workspaces/{workspace_id}": {
+      "get": {
+        "operationId": "getWorkspace",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Selected workspace and membership."
+          },
+          "401": {
+            "description": "Authentication is required."
+          },
+          "404": {
+            "description": "Workspace is missing or hidden by tenant isolation."
+          }
+        }
+      }
+    },
+    "/workspaces/{workspace_id}/capabilities": {
+      "post": {
+        "operationId": "setWorkspaceCapability",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["capability", "enabled"],
+                "properties": {
+                  "capability": {
+                    "type": "string",
+                    "enum": ["media_processing"]
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Workspace capability configuration updated and audited."
+          },
+          "401": {
+            "description": "Authentication is required."
+          },
+          "403": {
+            "description": "Only Owner/Admin can change workspace capability configuration."
+          },
+          "404": {
+            "description": "Workspace is missing, hidden by tenant isolation or capability is disabled."
+          },
+          "422": {
+            "description": "Capability input validation failed."
+          }
+        }
+      }
+    },
+    "/workspaces/{workspace_id}/operations/metrics": {
+      "get": {
+        "operationId": "getWorkspaceOperationalMetrics",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Owner/Admin operational metrics for queue, leases, retries, dead letters and artifacts." },
+          "401": { "description": "Authentication is required." },
+          "403": { "description": "Only Owner/Admin can inspect operations." },
+          "404": { "description": "Workspace is missing or hidden by tenant isolation." }
+        }
+      }
+    },
+    "/workspaces/{workspace_id}/service-credentials": {
+      "post": {
+        "operationId": "createServiceCredential",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": { "required": true },
+        "responses": {
+          "201": { "description": "Service credential metadata stored with a secret-manager reference only." },
+          "401": { "description": "Authentication is required." },
+          "403": { "description": "Only Owner/Admin can manage provider credentials." },
+          "404": { "description": "Workspace is missing or hidden by tenant isolation." },
+          "422": { "description": "Plaintext secret fields or invalid metadata were rejected." }
+        }
+      }
+    },
+    "/workspaces/{workspace_id}/simulator-mode": {
+      "post": {
+        "operationId": "setSimulatorMode",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": { "required": true },
+        "responses": {
+          "200": { "description": "Local/staging simulator mode configured." },
+          "401": { "description": "Authentication is required." },
+          "403": { "description": "Only Owner/Admin can configure simulator modes." },
+          "404": { "description": "Workspace is hidden or simulator controls are disabled for this environment." },
+          "422": { "description": "Unsupported simulator boundary or mode." }
+        }
+      }
+    },
+    "/workspaces/{workspace_id}/restore-drills": {
+      "post": {
+        "operationId": "recordRestoreDrill",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": { "required": true },
+        "responses": {
+          "200": { "description": "Restore drill evidence recorded for RLS and artifact-reference preservation." },
+          "401": { "description": "Authentication is required." },
+          "403": { "description": "Only Owner/Admin can record restore drills." },
+          "404": { "description": "Workspace or artifact is missing or hidden by tenant isolation." }
+        }
+      }
+    },
+    "/workspaces/{workspace_id}/redaction-scan": {
+      "post": {
+        "operationId": "runRedactionScan",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": { "required": true },
+        "responses": {
+          "200": { "description": "Secret and signed-URL redaction scan completed." },
+          "401": { "description": "Authentication is required." },
+          "403": { "description": "Only Owner/Admin can inspect operational logs." },
+          "404": { "description": "Workspace is missing or hidden by tenant isolation." },
+          "422": { "description": "Scan input validation failed." }
+        }
+      }
+    },
+    "/brands/assets/uploads": {
+      "post": {
+        "operationId": "initiateBrandAssetUpload",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "description": "Stable request identity for upload initiation."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "fileName", "contentType", "byteSize", "sha256"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "fileName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240
+                  },
+                  "contentType": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "byteSize": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "minLength": 64,
+                    "maxLength": 64
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Upload contract and quarantined artifact created."
+          },
+          "400": {
+            "description": "Idempotency-Key is required."
+          },
+          "401": {
+            "description": "Authentication is required."
+          },
+          "404": {
+            "description": "Workspace is missing or hidden by tenant isolation."
+          },
+          "413": {
+            "description": "File is larger than the allowed limit."
+          },
+          "422": {
+            "description": "Upload input validation failed."
+          }
+        }
+      }
+    },
+    "/brands/assets/uploads/{artifact_id}/complete": {
+      "post": {
+        "operationId": "completeBrandAssetUpload",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "artifact_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Artifact validated and moved to clean media."
+          },
+          "401": {
+            "description": "Authentication is required."
+          },
+          "404": {
+            "description": "Artifact is missing or hidden by tenant isolation."
+          },
+          "409": {
+            "description": "Artifact hash mismatch."
+          },
+          "415": {
+            "description": "Asset type is unsupported."
+          },
+          "422": {
+            "description": "Completion input validation failed."
+          }
+        }
+      }
+    },
+    "/brands/crawl-runs": {
+      "post": {
+        "operationId": "createBrandCrawlRun",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Stable request identity for safe brand intake creation."
+          }
+        ],
+        "requestBody": {
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Brand crawl run, retained brand asset rights and queued crawl job were created."
+          },
+          "400": {
+            "description": "Idempotency key is required."
+          },
+          "401": {
+            "description": "Authentication is required."
+          },
+          "404": {
+            "description": "Workspace or artifact is hidden by tenant isolation."
+          },
+          "409": {
+            "description": "Source rights acknowledgement or per-asset rights basis is missing."
+          },
+          "422": {
+            "description": "URL, crawl scope or attached asset validation failed."
+          }
+        }
+      }
+    },
+    "/brands/crawl-runs/{crawl_run_id}/candidates": {
+      "get": {
+        "operationId": "listBrandCandidates",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "crawl_run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Evidence-backed brand candidates for a crawl run."
+          },
+          "401": {
+            "description": "Authentication is required."
+          },
+          "404": {
+            "description": "Crawl run is missing or hidden by tenant isolation."
+          }
+        }
+      }
+    },
+    "/brands/{brand_id}/approvals": {
+      "post": {
+        "operationId": "approveBrandProfile",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "brand_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "One exact approved brand profile version, approval audit and active rules were created."
+          },
+          "401": {
+            "description": "Authentication is required."
+          },
+          "403": {
+            "description": "Only Owner, Admin or Client Manager can approve brand truth."
+          },
+          "404": {
+            "description": "Workspace or crawl run is missing or hidden by tenant isolation."
+          },
+          "409": {
+            "description": "The profile version changed or is not approved for production use."
+          },
+          "422": {
+            "description": "Approval input is missing required brand-truth fields."
+          }
+        }
+      }
+    },
+    "/generation-estimates": {
+      "post": {
+        "operationId": "createGenerationEstimate",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Generation estimate accepted only for the active approved brand profile version."
+          },
+          "401": {
+            "description": "Authentication is required."
+          },
+          "403": {
+            "description": "Only Owner, Admin or Client Manager can confirm paid generation."
+          },
+          "404": {
+            "description": "Workspace is missing or hidden by tenant isolation."
+          },
+          "409": {
+            "description": "Brand profile is draft, revoked, rejected, superseded or missing."
+          },
+          "422": {
+            "description": "Estimate input validation failed."
+          }
+        }
+      }
+    },
+    "/blueprints": {
+      "get": {
+        "operationId": "listBlueprints",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "brandProfileId",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 50 }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Workspace-scoped reusable blueprint library with compatibility metadata and bounded pagination." },
+          "401": { "description": "Authentication is required." },
+          "403": { "description": "Only Owner, Admin or Client Manager can select blueprints." },
+          "404": { "description": "Workspace or blueprint is hidden by tenant isolation." },
+          "409": { "description": "Brand profile is missing or not the active approved version." },
+          "422": { "description": "Blueprint list input validation failed." }
+        }
+      }
+    },
+    "/blueprints/library-entries": {
+      "post": {
+        "operationId": "seedBlueprintLibraryEntry",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": { "required": true },
+        "responses": {
+          "201": { "description": "Approved reusable blueprint library entry retained for explicit existing-blueprint selection." },
+          "401": { "description": "Authentication is required." },
+          "403": { "description": "Only Owner, Admin or Client Manager can create blueprint entries." },
+          "404": { "description": "Workspace is missing or hidden by tenant isolation." },
+          "409": { "description": "Brand profile is missing or not approved for production use." },
+          "422": { "description": "Blueprint entry validation failed." }
+        }
+      }
+    },
+    "/blueprint-requests": {
+      "post": {
+        "operationId": "createBlueprintRequest",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": { "required": true },
+        "responses": {
+          "202": { "description": "Explicit existing, discovery or default path created one downstream blueprint request identity." },
+          "401": { "description": "Authentication is required." },
+          "403": { "description": "Only Owner, Admin or Client Manager can choose blueprint paths." },
+          "404": { "description": "Workspace or existing blueprint is hidden by tenant isolation." },
+          "409": { "description": "Brand profile version is stale or blueprint is archived/incompatible." },
+          "422": { "description": "Blueprint request validation failed." }
+        }
+      }
+    },
+    "/blueprint-requests/{blueprint_request_id}/ready-blueprint": {
+      "post": {
+        "operationId": "createReadyBlueprint",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "blueprint_request_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": { "required": true },
+        "responses": {
+          "202": { "description": "P5 ready immutable blueprint, formula, director prompt and script input contract created." },
+          "401": { "description": "Authentication is required." },
+          "403": { "description": "Only Owner, Admin or Client Manager can prepare ready blueprints." },
+          "404": { "description": "Workspace or blueprint request is hidden by tenant isolation." },
+          "409": { "description": "Blueprint stages are incomplete, source is incompatible, or ready record already exists." },
+          "422": { "description": "Formula slots or request input are invalid." }
+        }
+      }
+    },
+    "/viral-candidates/search": {
+      "post": {
+        "operationId": "searchViralCandidates",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": { "required": true },
+        "responses": {
+          "202": { "description": "Xpoz simulator or manual fallback returned ranked candidates with immutable metric snapshots." },
+          "401": { "description": "Authentication is required." },
+          "403": { "description": "Only Owner, Admin or Client Manager can run viral discovery." },
+          "404": { "description": "Workspace or blueprint request is hidden by tenant isolation." },
+          "503": { "description": "Discovery provider outage, timeout, empty or malformed result created no fabricated candidates." },
+          "422": { "description": "Viral candidate search validation failed." }
+        }
+      }
+    },
+    "/viral-candidates/{candidate_id}/extract-blueprint": {
+      "post": {
+        "operationId": "extractViralCandidateBlueprint",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": { "required": true },
+        "responses": {
+          "202": { "description": "Authorised media acquisition retained an analysis artifact and thumbnail blueprint." },
+          "401": { "description": "Authentication is required." },
+          "403": { "description": "Only Owner, Admin or Client Manager can extract blueprint stages." },
+          "404": { "description": "Workspace or candidate is hidden by tenant isolation." },
+          "409": { "description": "Rights, retrieval policy, source hash or blueprint stage confidence blocked extraction." },
+          "422": { "description": "Media acquisition request validation failed." }
+        }
+      }
+    },
+    "/viral-candidates/{candidate_id}/scene-blueprint": {
+      "post": {
+        "operationId": "createSceneBlueprint",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": { "required": true },
+        "responses": {
+          "202": { "description": "Scene detection, transcription, keyframe, vision and OCR stage graph produced scene-level blueprint evidence." },
+          "401": { "description": "Authentication is required." },
+          "403": { "description": "Only Owner, Admin or Client Manager can create scene blueprints." },
+          "404": { "description": "Workspace, candidate or prerequisite extraction is hidden by tenant isolation." },
+          "409": { "description": "A required blueprint stage is incomplete and cannot advance as complete." },
+          "422": { "description": "Malformed AI output, worker timeout, OOM or request validation blocked the stage graph." }
+        }
+      }
+    },
+    "/artifacts/{artifact_id}/downloads": {
+      "post": {
+        "operationId": "createArtifactDownload",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "artifact_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized short-lived download contract."
+          },
+          "401": {
+            "description": "Authentication is required."
+          },
+          "404": {
+            "description": "Artifact is missing, not clean or hidden by tenant isolation."
+          }
+        }
+      }
+    },
+    "/jobs/simulated-media-processing": {
+      "post": {
+        "operationId": "startSimulatedMediaProcessing",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "description": "Stable request identity for the simulated media job."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "inputArtifactId", "outputFileName"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "inputArtifactId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "outputFileName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Canonical PostgreSQL-owned job and outbox event created."
+          },
+          "400": {
+            "description": "Idempotency-Key is required."
+          },
+          "401": {
+            "description": "Authentication is required."
+          },
+          "404": {
+            "description": "Workspace or input artifact is missing or hidden by tenant isolation."
+          },
+          "409": {
+            "description": "The idempotency key was already used with different input."
+          },
+          "422": {
+            "description": "Request validation failed."
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}": {
+      "get": {
+        "operationId": "getJob",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace-scoped job state."
+          },
+          "401": {
+            "description": "Authentication is required."
+          },
+          "404": {
+            "description": "Job is missing or hidden by tenant isolation."
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}/events": {
+      "get": {
+        "operationId": "listJobEvents",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Append-only job event trail."
+          },
+          "401": {
+            "description": "Authentication is required."
+          },
+          "404": {
+            "description": "Job is missing or hidden by tenant isolation."
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}/trace": {
+      "get": {
+        "operationId": "getJobTrace",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Owner/Admin trace across request, outbox, worker and artifact evidence." },
+          "401": { "description": "Authentication is required." },
+          "403": { "description": "Only Owner/Admin can inspect operations." },
+          "404": { "description": "Job is missing or hidden by tenant isolation." }
+        }
+      }
+    },
+    "/jobs/{job_id}/recover": {
+      "post": {
+        "operationId": "recoverJob",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": { "required": true },
+        "responses": {
+          "200": { "description": "Owner/Admin recovery action recorded without duplicate completion or external side effect." },
+          "401": { "description": "Authentication is required." },
+          "403": { "description": "Only Owner/Admin can recover provider or worker jobs." },
+          "404": { "description": "Job is missing or hidden by tenant isolation." },
+          "409": { "description": "Job is not recoverable from its current state." },
+          "422": { "description": "Recovery input validation failed." }
+        }
+      }
+    },
+    "/jobs/dead-letter": {
+      "post": {
+        "operationId": "listDeadLetterJobs",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace-scoped failed jobs visible for recovery."
+          },
+          "401": {
+            "description": "Authentication is required."
+          },
+          "404": {
+            "description": "Workspace is missing or hidden by tenant isolation."
+          }
+        }
+      }
+    },
+    "/internal/outbox/relay": {
+      "post": {
+        "operationId": "relayOutbox",
+        "responses": {
+          "200": {
+            "description": "Pending outbox rows relayed as opaque queue wake-ups."
+          },
+          "401": {
+            "description": "Worker authentication failed."
+          },
+          "503": {
+            "description": "Redis wake-up delivery is unavailable; PostgreSQL state remains canonical."
+          }
+        }
+      }
+    },
+    "/internal/jobs/leases/expire": {
+      "post": {
+        "operationId": "expireJobLeases",
+        "responses": {
+          "200": {
+            "description": "Expired active leases requeued canonical jobs."
+          },
+          "401": {
+            "description": "Worker authentication failed."
+          }
+        }
+      }
+    },
+    "/internal/jobs/{job_id}/claim": {
+      "post": {
+        "operationId": "claimJob",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authenticated private worker received an active lease and job input."
+          },
+          "401": {
+            "description": "Worker authentication failed."
+          },
+          "404": {
+            "description": "Job is missing."
+          },
+          "409": {
+            "description": "Job cannot be claimed in its current state."
+          }
+        }
+      }
+    },
+    "/internal/jobs/{job_id}/heartbeat": {
+      "post": {
+        "operationId": "heartbeatJob",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lease heartbeat recorded and job marked running."
+          },
+          "401": {
+            "description": "Worker authentication failed."
+          },
+          "409": {
+            "description": "Lease is stale or invalid."
+          }
+        }
+      }
+    },
+    "/internal/jobs/{job_id}/complete": {
+      "post": {
+        "operationId": "completeJob",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Validated worker output retained and job completed idempotently."
+          },
+          "401": {
+            "description": "Worker authentication failed."
+          },
+          "409": {
+            "description": "Lease is stale or invalid."
+          },
+          "422": {
+            "description": "Worker output hash, object key, size or schema was invalid."
+          }
+        }
+      }
+    },
+    "/internal/jobs/{job_id}/fail": {
+      "post": {
+        "operationId": "failJob",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authenticated worker failure recorded, retried or dead-lettered."
+          },
+          "401": {
+            "description": "Worker authentication failed."
+          },
+          "409": {
+            "description": "Lease is stale or invalid."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Supabase JWT"
+      }
+    }
+  }
+}

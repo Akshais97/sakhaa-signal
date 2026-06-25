@@ -1,0 +1,19 @@
+{
+  "name": "@sakhaa-forge/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./generated/client/index.js",
+  "types": "./generated/client/index.d.ts",
+  "scripts": {
+    "generate": "node scripts/db-generate.mjs",
+    "migrate:dev": "node scripts/db-migrate-dev.mjs",
+    "validate": "node scripts/db-validate.mjs"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.0"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.0"
+  }
+}
