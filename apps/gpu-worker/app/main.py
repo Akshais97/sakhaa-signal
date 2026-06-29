@@ -1,12 +1,34 @@
 import os
 import uuid
 from typing import Dict, Any, Optional
+from contextlib import asynccontextmanager
 from app.pipeline import run_pipeline
 from fastapi import FastAPI, HTTPException, Header, Depends, BackgroundTasks
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 
-app = FastAPI(title="TribeV2 GPU Worker API", version="1.0.0")
+# Global cache for health check status
+health_status = {
+    "status": "healthy",
+    "cuda_available": False,
+    "device_name": "CPU",
+    "pipeline_version": "tribev2-ad-scorer-v1.0"
+}
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Pre-import torch and check CUDA during startup to avoid slow first requests
+    print("[STARTUP] Pre-importing PyTorch and checking CUDA...")
+    try:
+        import torch
+        health_status["cuda_available"] = torch.cuda.is_available()
+        health_status["device_name"] = torch.cuda.get_device_name(0) if health_status["cuda_available"] else "CPU"
+        print(f"[STARTUP SUCCESS] PyTorch imported. CUDA available: {health_status['cuda_available']} ({health_status['device_name']})")
+    except Exception as e:
+        print(f"[STARTUP WARNING] Failed to import PyTorch or check CUDA: {e}")
+    yield
+
+app = FastAPI(title="TribeV2 GPU Worker API", version="1.0.0", lifespan=lifespan)
 
 # Security
 security = HTTPBearer()
@@ -62,14 +84,7 @@ def process_job_async(job_id: str, payload: JobPayload):
 # Endpoints
 @app.get("/health")
 def health_check():
-    import torch
-    cuda_available = torch.cuda.is_available()
-    return {
-        "status": "healthy",
-        "cuda_available": cuda_available,
-        "device_name": torch.cuda.get_device_name(0) if cuda_available else "CPU",
-        "pipeline_version": "tribev2-ad-scorer-v1.0"
-    }
+    return health_status
 
 @app.post("/api/gpu/jobs/run")
 def run_job(

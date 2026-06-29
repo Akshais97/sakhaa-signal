@@ -1,0 +1,35 @@
+version: "3.8"
+
+services:
+  gpu-worker:
+    image: akshais97/video-to-marketing-outcome:latest
+    container_name: tribev2-gpu-worker
+    ports:
+      - "8080:8000"
+    env_file:
+      - .env
+    environment:
+      - PORT=8000
+    # Request access to the target host's NVIDIA GPU cores
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  web-frontend:
+    image: akshais97/video-to-marketing-frontend:latest
+    container_name: tribev2-web-frontend
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - PORT=3000
+      - GPU_WORKER_URL=http://gpu-worker:8000
+    depends_on:
+      - gpu-worker
+    restart: unless-stopped

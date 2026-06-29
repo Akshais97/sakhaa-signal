@@ -1,0 +1,98 @@
+# =========================================================================
+# DOCKER BUILD EXCLUSIONS (.dockerignore)
+# =========================================================================
+
+# 1. Exclude Private Configuration Files & Secrets
+.env
+.env.example
+.env.*
+.npmrc
+pnpm-lock.yaml
+pnpm-workspace.yaml
+pnpm.cmd
+turbo.json
+
+# 2. Exclude Editor & Tool Configuration Folders
+.agents/
+.claude/
+.editorconfig
+.git/
+.gitignore
+.gitattributes
+.node-version
+.nvmrc
+.obsidian/
+.python-version
+.tool-versions
+.vscode/
+
+# 3. Exclude Non-GPU Workspace Applications & Packages
+apps/web/
+packages/
+workers/
+ad-brain-scorer/
+firecrawl-main/
+instagram-content-impact-predictor/
+trypencil_design_extraction/
+Tribe V2/
+tribe v2 adapter/
+
+# 4. Exclude Temporary Folders, Caches & Output Directories
+.local/
+.pytest_cache/
+cache/
+cache_validation_output/
+env details/
+env_patches/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+scratch/
+Untitled/
+Untitled*
+
+# 5. Exclude Workspace Scripts, Tests & Tooling
+scripts/
+tests/
+find_all_files.py
+inspect_csv.py
+inspect_package.py
+inspect_pkg2.py
+inspect_tribev2.py
+make_surya_reconstructed_events.py
+map_hcp_atlas.py
+python tribe_source_probe_no_import.py
+search_tmp.py
+search_tribev2_code.py
+search_venv.py
+search_venv_fast.py
+test_cache_loader_media_only.py
+test_cache_loader_readonly.py
+test_cache_loader_text_only.py
+
+# 6. Exclude Large Assets, Media & Developer Documentation
+*.zip
+*.tar
+*.mp4
+*.wav
+*.tsv
+*.png
+*.html
+*.txt
+*.md
+!README.md
+!apps/gpu-worker/README.md
+!tribev2-main/tribev2-main/README.md
+
+# 7. Exclude Other Unused Report Directories
+tribe_analysis/
+tribe_report_surya/
+tribev2_reverse/
+tribev2_stages/
+kaggle_tribev2_pipeline_bundle/
+Fastlane Features/
+Marketing Score Creation/
+Prep Pipeline/
+project based skills/
+v0_testing/

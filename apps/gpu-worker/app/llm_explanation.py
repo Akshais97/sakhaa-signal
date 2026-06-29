@@ -1,3 +1,4 @@
+import os
 import json
 from pathlib import Path
 from typing import Dict, Any
@@ -17,7 +18,7 @@ def generate_llm_explanation(
     cs_score = outcomes.get("Conversion", {}).get("score_0_100", 50.0)
     br_score = outcomes.get("Brand Recall", {}).get("score_0_100", 50.0)
 
-    # 1. Conversion analysis
+    # 1. Compile deterministic fallbacks
     if cs_score >= 70:
         cs_analysis = (
             f"Conversion Support is exceptionally strong at {cs_score}/100. "
@@ -45,7 +46,6 @@ def generate_llm_explanation(
         )
         cs_status = "Weak"
 
-    # 2. Brand Recall analysis
     if br_score >= 70:
         br_analysis = (
             f"Brand Recall Potential is outstanding at {br_score}/100. "
@@ -72,7 +72,6 @@ def generate_llm_explanation(
         )
         br_status = "Weak"
 
-    # 3. Identify Strengths & Weaknesses
     all_clusters = list(cluster_17_summaries.values())
     sorted_clusters = sorted(all_clusters, key=lambda c: c.get("strength_0_1", 0.0), reverse=True)
     
@@ -97,7 +96,6 @@ def generate_llm_explanation(
             "explanation": f"Low activation (strength={c.get('strength_0_1', 0.0):.2f}) in {c.get('cluster_name')} ({c.get('cluster_id')}) suggests room for improvement in {c.get('psychological_proxy', 'response')}."
         })
 
-    # 4. Actionable recommendations
     recommendations = []
     if cs_score < 60:
         recommendations.append(
@@ -117,7 +115,6 @@ def generate_llm_explanation(
     if not recommendations:
         recommendations.append("Maintain the current creative balance, as all outcomes demonstrate high performance.")
 
-    # 5. 15-cluster vs 17-cluster comparison
     comparison = (
         "The 15-cluster model represents the core cognitive/sensory processing networks (A to O). "
         "The 17-cluster model adds two key temporal-valence parameters: Cluster P (Valence Direction) "
@@ -127,7 +124,6 @@ def generate_llm_explanation(
         f"{'consistent' if vp_score > 60 else 'fragmented'} narrative coherence."
     )
 
-    # 6. Build report structure
     report_data = {
         "outcomes": {
             "engagement": {"score": ep_score, "status": "Good" if ep_score >= 60 else "Needs Work"},
@@ -144,12 +140,9 @@ def generate_llm_explanation(
         "evidence_summary": "HCP-MMP1 parcellation aggregates 360 region-level activations into functional networks, providing a robust neural benchmark."
     }
 
-    # Write JSON report
-    with (output_dir / "explanation_report.json").open("w", encoding="utf-8") as f:
-        json.dump(report_data, f, indent=2)
-
-    # Write text executive summary
-    exec_summary_text = (
+    # Deterministic default files (will be overwritten if LLM succeeds)
+    default_json = report_data.copy()
+    default_exec_summary = (
         "TRIBEv2 AD SCORER EXECUTIVE SUMMARY\n"
         "====================================\n"
         f"Engagement Score: {ep_score}/100\n"
@@ -160,10 +153,8 @@ def generate_llm_explanation(
         f"BRAND RECALL SUMMARY: {br_analysis}\n\n"
         "RECOMMENDATIONS:\n" + "\n".join(f"- {r}" for r in recommendations)
     )
-    (output_dir / "executive_summary.txt").write_text(exec_summary_text, encoding="utf-8")
-
-    # Write Markdown report
-    md_content = f"""# Creative Performance & Cognitive Explanation Report
+    
+    default_md = f"""# Creative Performance & Cognitive Explanation Report
 
 This explanation report evaluates the creative effectiveness of the advertisement based on brain-response mappings from the TRIBEv2 multimodal transformer.
 
@@ -193,13 +184,13 @@ This explanation report evaluates the creative effectiveness of the advertisemen
 ### Genuinely Strong Responses
 """
     for s in strengths:
-        md_content += f"- **Cluster {s['cluster_id']} ({s['cluster_name']})**: strength={s['strength']:.3f}. {s['explanation']}\n"
+        default_md += f"- **Cluster {s['cluster_id']} ({s['cluster_name']})**: strength={s['strength']:.3f}. {s['explanation']}\n"
 
-    md_content += "\n### Weaknesses & Areas for Optimization\n"
+    default_md += "\n### Weaknesses & Areas for Optimization\n"
     for w in weaknesses:
-        md_content += f"- **Cluster {w['cluster_id']} ({w['cluster_name']})**: strength={w['strength']:.3f}. {w['explanation']}\n"
+        default_md += f"- **Cluster {w['cluster_id']} ({w['cluster_name']})**: strength={w['strength']:.3f}. {w['explanation']}\n"
 
-    md_content += f"""
+    default_md += f"""
 ---
 
 ## Sprints Comparison: 15-Cluster vs. 17-Cluster Model
@@ -210,6 +201,99 @@ This explanation report evaluates the creative effectiveness of the advertisemen
 ## Creative Action Items
 """
     for r in recommendations:
-        md_content += f"- [ ] {r}\n"
+        default_md += f"- [ ] {r}\n"
 
-    (output_dir / "explanation_report.md").write_text(md_content, encoding="utf-8")
+    # Write initial/fallback files
+    with (output_dir / "explanation_report.json").open("w", encoding="utf-8") as f:
+        json.dump(default_json, f, indent=2)
+    (output_dir / "executive_summary.txt").write_text(default_exec_summary, encoding="utf-8")
+    (output_dir / "explanation_report.md").write_text(default_md, encoding="utf-8")
+
+    # 2. Invoke OpenAI if key exists
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if api_key and api_key != "local-openai-placeholder":
+        print(f"[LLM] OpenAI API Key detected. Invoking GPT-4o for dynamic creative synthesis...")
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=api_key)
+
+            # Build metadata payload
+            metadata = {
+                "brand_name": marketing_scores.get("brand_name", "Unknown Brand"),
+                "campaign_name": marketing_scores.get("campaign_name", "Unknown Campaign"),
+                "target_audience": marketing_scores.get("target_audience", "General Audience"),
+                "creative_objective": marketing_scores.get("creative_objective", "Brand Awareness / Conversion")
+            }
+
+            prompt = f"""
+You are an expert neuro-marketing analyst. Analyze the following ad scorer outcomes and brain-mapping cluster evidence:
+
+### 1. Project Metadata:
+- Brand Name: {metadata['brand_name']}
+- Campaign Name: {metadata['campaign_name']}
+- Target Audience: {metadata['target_audience']}
+- Creative Objective: {metadata['creative_objective']}
+
+### 2. Deterministic outcome scores (0-100 scale):
+- Emotional Pull (Engagement): {ep_score}/100
+- Visual Pull (Virality): {vp_score}/100
+- Cognitive Stickiness (Conversion): {cs_score}/100
+- Brand Recall (Recall Potential): {br_score}/100
+
+### 3. Neuro-Evidence (Top 3 Strengths):
+{json.dumps(strengths, indent=2)}
+
+### 4. Neuro-Evidence (Top 3 Weaknesses):
+{json.dumps(weaknesses, indent=2)}
+
+### 5. 15-Cluster vs 17-Cluster Baseline comparison:
+{comparison}
+
+Write a professional dynamic explanation report. Return your output EXACTLY as a JSON object with the following keys:
+- "conversion_analysis": Explain why Conversion is at {cs_score}/100 using the specific cluster evidence (like Cluster F/J/N/G) and metadata.
+- "brand_recall_analysis": Explain why Brand Recall is at {br_score}/100 using the cluster evidence (like Cluster E/M/N) and metadata.
+- "recommendations": A list of 3-4 actionable, concrete video editing or creative recommendations.
+- "executive_summary": A concise plain-text executive summary (150-200 words).
+- "markdown_report": A fully formatted Markdown document containing:
+  - Outcome Analysis table
+  - Detailed Persuasion and Brand Recall Analysis sections
+  - Strengths and Weaknesses section (using the cluster metrics)
+  - Detailed Comparison of the 15-cluster vs 17-cluster neural models
+  - Creative Action Items checklist
+"""
+
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a professional neuromarketing AI analyst. Your explanations must link deterministic outcome scores and HCP-MMP1 brain parcellation clusters to real marketing and creative results. You must output a JSON object containing the requested keys."
+                    },
+                    {"role": "user", "content": prompt}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.7
+            )
+
+            result_json = json.loads(response.choices[0].message.content)
+
+            # Map generated fields into json structure
+            report_data["conversion_analysis"] = result_json.get("conversion_analysis", cs_analysis)
+            report_data["brand_recall_analysis"] = result_json.get("brand_recall_analysis", br_analysis)
+            report_data["recommendations"] = result_json.get("recommendations", recommendations)
+            
+            # Save updated JSON
+            with (output_dir / "explanation_report.json").open("w", encoding="utf-8") as f:
+                json.dump(report_data, f, indent=2)
+
+            # Save dynamic Markdown report and plain text executive summary
+            exec_summary = result_json.get("executive_summary", default_exec_summary)
+            md_report = result_json.get("markdown_report", default_md)
+            
+            (output_dir / "executive_summary.txt").write_text(exec_summary, encoding="utf-8")
+            (output_dir / "explanation_report.md").write_text(md_report, encoding="utf-8")
+
+            print("[LLM SUCCESS] Dynamic neuromarketing explanation successfully compiled via GPT-4o.")
+        except Exception as e:
+            print(f"[LLM WARNING] OpenAI API invocation failed: {e}. Falling back to default deterministic reports.")
+

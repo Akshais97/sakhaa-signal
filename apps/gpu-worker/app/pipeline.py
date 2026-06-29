@@ -19,17 +19,78 @@ from app.scoring import (
 )
 from app.llm_explanation import generate_llm_explanation
 
-# Configure environment variables to use E-drive caches
-ROOT_DIR = Path(__file__).resolve().parents[3] # E:\dockerizing\Tribe V2 Based Ad Scorer and Generator
+# Determine project root directory with fallbacks
+ROOT_DIR_ENV = os.environ.get("TRIBEV2_ROOT_DIR")
+if ROOT_DIR_ENV:
+    ROOT_DIR = Path(ROOT_DIR_ENV)
+else:
+    # Handle docker directory layout safely
+    current_file = Path(__file__).resolve()
+    if len(current_file.parents) > 3:
+        ROOT_DIR = current_file.parents[3]
+    else:
+        ROOT_DIR = Path("/workspace")
+
 AI_CACHES = ROOT_DIR / "env details" / "ai_caches"
 
-os.environ["HF_HOME"] = str(AI_CACHES / "huggingface")
-os.environ["TORCH_HOME"] = str(AI_CACHES / "torch")
-os.environ["TRANSFORMERS_CACHE"] = str(AI_CACHES / "huggingface" / "hub")
+# Configure HF/Torch home folders (only override if they exist)
+if AI_CACHES.exists():
+    os.environ["HF_HOME"] = str(AI_CACHES / "huggingface")
+    os.environ["TORCH_HOME"] = str(AI_CACHES / "torch")
+    os.environ["TRANSFORMERS_CACHE"] = str(AI_CACHES / "huggingface" / "hub")
 
-# Monkey-patch PosixPath on Windows
+# Monkey-patch PosixPath on Windows only
 import pathlib
-pathlib.PosixPath = pathlib.WindowsPath
+if os.name == 'nt':
+    pathlib.PosixPath = pathlib.WindowsPath
+
+def get_s3_client():
+    import boto3
+    from botocore.config import Config
+    
+    endpoint_url = os.environ.get("AWS_ENDPOINT_URL") or os.environ.get("S3_ENDPOINT_URL")
+    access_key = os.environ.get("AWS_ACCESS_KEY_ID")
+    secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
+    region_name = os.environ.get("AWS_DEFAULT_REGION")
+    
+    s3_config = Config(signature_version='s3v4') if endpoint_url else None
+    
+    return boto3.client(
+        's3',
+        endpoint_url=endpoint_url,
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name=region_name,
+        config=s3_config
+    )
+
+def download_from_s3(object_key: str, local_path: Path):
+    bucket_name = os.environ.get("B2_BUCKET_QUARANTINE", "v0-local-quarantine")
+    print(f"[STORAGE] Downloading {object_key} from bucket {bucket_name} to {local_path}...")
+    s3_client = get_s3_client()
+    local_path.parent.mkdir(parents=True, exist_ok=True)
+    s3_client.download_file(bucket_name, object_key, str(local_path))
+    print(f"[STORAGE SUCCESS] Downloaded {object_key} successfully.")
+
+def upload_directory_to_s3(local_dir: Path, job_id: str):
+    provider = os.environ.get("OBJECT_STORAGE_PROVIDER", "local-filesystem")
+    if provider == "local-filesystem":
+        print("[STORAGE] Using local-filesystem. Skipping S3 upload.")
+        return
+        
+    bucket_name = os.environ.get("B2_BUCKET_PRIVATE_ARTIFACTS", "v0-local-artifacts")
+    s3_client = get_s3_client()
+    
+    print(f"[STORAGE] Uploading all artifacts in {local_dir} to bucket {bucket_name} under prefix exports/{job_id}/...")
+    for root, _, files in os.walk(local_dir):
+        for file in files:
+            local_path = Path(root) / file
+            rel_path = local_path.relative_to(local_dir)
+            s3_key = f"exports/{job_id}/{rel_path.as_posix()}"
+            
+            print(f"[STORAGE] Uploading {local_path} -> s3://{bucket_name}/{s3_key}")
+            s3_client.upload_file(str(local_path), bucket_name, s3_key)
+    print("[STORAGE SUCCESS] All artifacts uploaded to S3.")
 
 def write_cluster_timeseries(
     reference_rows: list,
@@ -132,21 +193,32 @@ def run_pipeline(job_id: str, payload: dict, update_status_callback) -> dict:
     ]:
         d.mkdir(parents=True, exist_ok=True)
 
-    # 2. Downloader (Port S3 downloader to local storage §5.3)
+    # 2. Downloader (Download from S3 or fallback to local storage)
     update_status_callback("DOWNLOADING_INPUT")
     video_key = payload.get("video_object_key")
-    quarantine_base = ROOT_DIR / ".local" / "storage" / "v0-local-quarantine"
-    source_video_path = quarantine_base / video_key
-
     local_video_path = input_dir / "original_video.mp4"
 
-    if source_video_path.exists():
-        shutil.copy2(source_video_path, local_video_path)
-        print(f"[PIPELINE] Input video downloaded/copied to: {local_video_path}")
-    else:
-        # Fallback for mock jobs without actual files
-        print(f"[PIPELINE WARNING] Source video not found at: {source_video_path}. Creating mock file.")
-        local_video_path.write_text("mock video data")
+    provider = os.environ.get("OBJECT_STORAGE_PROVIDER", "local-filesystem")
+    downloaded_s3 = False
+
+    if provider != "local-filesystem":
+        try:
+            download_from_s3(video_key, local_video_path)
+            downloaded_s3 = True
+        except Exception as e:
+            print(f"[PIPELINE ERROR] Failed to download video from S3 (key: {video_key}): {e}")
+            print("[PIPELINE INFO] Checking for local fallback...")
+
+    if not downloaded_s3:
+        quarantine_base = ROOT_DIR / ".local" / "storage" / "v0-local-quarantine"
+        source_video_path = quarantine_base / video_key
+        if source_video_path.exists():
+            shutil.copy2(source_video_path, local_video_path)
+            print(f"[PIPELINE] Input video copied from local quarantine: {local_video_path}")
+        else:
+            # Fallback for mock jobs without actual files
+            print(f"[PIPELINE WARNING] Source video not found locally at: {source_video_path}. Creating mock file.")
+            local_video_path.write_text("mock video data")
 
     update_status_callback("VALIDATING")
     time.sleep(0.5)
@@ -169,6 +241,7 @@ def run_pipeline(job_id: str, payload: dict, update_status_callback) -> dict:
 
         # Attempt loading real model from pretrained cache
         from tribev2 import TribeModel
+        import torch
         print("[PIPELINE] Loading TribeModel from pretrained cache...")
         device = "cuda" if torch.cuda.is_available() else "cpu"
         model = TribeModel.from_pretrained("facebook/tribev2", checkpoint_dir="facebook/tribev2", device=device)
@@ -436,7 +509,12 @@ def run_pipeline(job_id: str, payload: dict, update_status_callback) -> dict:
     create_zip_bundle(output_dir, exports_dir / "full_result_bundle.zip", exclude_dirs=["exports", "training_export"])
 
     update_status_callback("UPLOADING_ARTIFACTS")
-    time.sleep(0.5)
+    try:
+        upload_directory_to_s3(output_dir, job_id)
+    except Exception as e:
+        print(f"[PIPELINE ERROR] Failed to upload artifacts to S3: {e}")
+        if provider != "local-filesystem":
+            raise e
 
     return {
         "status": "COMPLETED",

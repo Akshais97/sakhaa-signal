@@ -179,3 +179,96 @@
   );
   border-style: dashed;
 }
+
+/* --- Premium Animations & Background Grids --- */
+
+@keyframes grid-pan {
+  0% { background-position: 0 0; }
+  100% { background-position: 48px 48px; }
+}
+
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 0.45; }
+}
+
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.dashboard-canvas {
+  position: relative;
+  background:
+    radial-gradient(circle at 10% 20%, rgba(101, 87, 245, 0.12), transparent 45%),
+    radial-gradient(circle at 90% 80%, rgba(255, 107, 61, 0.08), transparent 45%),
+    linear-gradient(180deg, var(--p-ink-850) 0%, var(--p-ink-900) 50%, var(--p-ink-950) 100%);
+  overflow: hidden;
+}
+
+.dashboard-canvas::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(circle at center, black, transparent 80%);
+  animation: grid-pan 25s linear infinite;
+  z-index: 0;
+}
+
+.dashboard-canvas::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.01), transparent);
+  background-size: 100% 8px;
+  opacity: 0.15;
+  z-index: 1;
+  animation: scanline 12s linear infinite;
+}
+
+.terminal-cursor {
+  animation: blink-cursor 1s step-end infinite;
+}
+
+/* Custom Scrollbar for list and console sections */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: var(--surface-sunken);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
+
+/* Circular Gauge Animation */
+.gauge-circle {
+  transition: stroke-dashoffset 1s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.hover-glow {
+  transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.hover-glow:hover {
+  box-shadow: 0 0 20px rgba(101, 87, 245, 0.15);
+  border-color: rgba(101, 87, 245, 0.4);
+  transform: translateY(-2px);
+}
+
