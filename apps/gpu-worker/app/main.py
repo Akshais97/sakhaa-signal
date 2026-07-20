@@ -68,18 +68,28 @@ jobs_db: Dict[str, Dict[str, Any]] = {}
 
 def process_job_async(job_id: str, payload: JobPayload):
     def update_status(state: str):
+        # Abort if the user cancelled the job
+        if jobs_db.get(job_id, {}).get("status") == "CANCELLED":
+            raise ValueError("Job cancelled by user")
         jobs_db[job_id]["status"] = state
 
     try:
         jobs_db[job_id]["status"] = "AUTHORIZED"
         result = run_pipeline(job_id, payload.model_dump(), update_status)
         
+        # Check one last time before marking complete
+        if jobs_db.get(job_id, {}).get("status") == "CANCELLED":
+            raise ValueError("Job cancelled by user")
+            
         # Set final completion state and manifest
         jobs_db[job_id]["status"] = "COMPLETED"
         jobs_db[job_id]["manifest"] = result.get("manifest")
     except Exception as e:
-        jobs_db[job_id]["status"] = "FAILED"
-        jobs_db[job_id]["error_message"] = str(e)
+        if str(e) == "Job cancelled by user" or jobs_db.get(job_id, {}).get("status") == "CANCELLED":
+            jobs_db[job_id]["status"] = "CANCELLED"
+        else:
+            jobs_db[job_id]["status"] = "FAILED"
+            jobs_db[job_id]["error_message"] = str(e)
 
 # Endpoints
 @app.get("/health")
@@ -117,7 +127,26 @@ def run_job(
 def get_job_status(job_id: str, token: str = Depends(verify_token)):
     if job_id not in jobs_db:
         raise HTTPException(status_code=404, detail="Job not found")
-    return jobs_db[job_id]
+        
+    job_info = jobs_db[job_id]
+    
+    # Read the local log file if it exists
+    log_path = ROOT_DIR / ".local" / "storage" / "v0-local-artifacts" / "exports" / job_id / "execution_logs.txt"
+    logs = []
+    if log_path.exists():
+        try:
+            with open(log_path, "r", encoding="utf-8") as f:
+                logs = [line.strip() for line in f.readlines() if line.strip()]
+        except Exception:
+            pass
+            
+    return {
+        "status": job_info["status"],
+        "payload": job_info["payload"],
+        "error_message": job_info.get("error_message"),
+        "manifest": job_info.get("manifest"),
+        "logs": logs
+    }
 
 @app.get("/api/gpu/jobs/{job_id}/manifest")
 def get_job_manifest(job_id: str, token: str = Depends(verify_token)):
@@ -131,3 +160,15 @@ def get_job_manifest(job_id: str, token: str = Depends(verify_token)):
             detail=f"Manifest not available. Job is in state: {job_info['status']}"
         )
     return job_info["manifest"]
+
+@app.post("/api/gpu/jobs/{job_id}/cancel")
+def cancel_job(job_id: str, token: str = Depends(verify_token)):
+    if job_id not in jobs_db:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    current_status = jobs_db[job_id]["status"]
+    if current_status in ["COMPLETED", "FAILED", "CANCELLED"]:
+        return {"status": current_status, "message": "Job already terminated"}
+        
+    jobs_db[job_id]["status"] = "CANCELLED"
+    return {"status": "CANCELLED", "message": "Job cancellation request sent"}

@@ -2,6 +2,18 @@
 # DOCKER BUILD EXCLUSIONS (.dockerignore)
 # =========================================================================
 
+# Exclude Heavy Local Folders & Build Outputs
+node_modules/
+.next/
+.venv/
+venv/
+__pycache__/
+env details/
+Tribe V2/
+Prep Pipeline/
+Marketing Score Creation/
+TribeV2_environment_handover_V2_files/
+
 # 1. Exclude Private Configuration Files & Secrets
 .env
 .env.example

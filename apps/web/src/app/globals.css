@@ -272,3 +272,165 @@
   transform: translateY(-2px);
 }
 
+/* Animations from import.md */
+.shiny-text {
+  background: linear-gradient(
+    120deg,
+    #F3F2EF 40%,
+    rgba(101, 87, 245, 0.8) 50%,
+    #F3F2EF 60%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  display: inline-block;
+  animation: shine 5s linear infinite;
+}
+
+.shiny-text.disabled {
+  background: none;
+  -webkit-text-fill-color: initial;
+  background-clip: initial;
+  animation: none;
+}
+
+@keyframes shine {
+  0% {
+    background-position: 200% center;
+  }
+  100% {
+    background-position: -200% center;
+  }
+}
+
+.soft-aurora-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.soft-aurora-ambient {
+  position: absolute;
+  inset: 0;
+  filter: blur(120px);
+  opacity: 0.4;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.aurora-blob {
+  position: absolute;
+  border-radius: 50%;
+  mix-blend-mode: plus-lighter;
+  filter: opacity(0.85);
+  animation: moveBlob 25s infinite alternate ease-in-out;
+}
+
+.blob-1 {
+  width: 70%;
+  height: 70%;
+  top: -10%;
+  left: -10%;
+  animation-duration: 22s;
+}
+
+.blob-2 {
+  width: 65%;
+  height: 65%;
+  bottom: -15%;
+  right: -10%;
+  animation-duration: 28s;
+  animation-delay: -5s;
+}
+
+.blob-3 {
+  width: 55%;
+  height: 55%;
+  top: 35%;
+  left: 25%;
+  animation-duration: 35s;
+  animation-delay: -10s;
+}
+
+@keyframes moveBlob {
+  0% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  33% {
+    transform: translate(40px, -60px) scale(1.15);
+  }
+  66% {
+    transform: translate(-30px, 30px) scale(0.9);
+  }
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+}
+
+.soft-aurora-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+}
+
+.spotlight-card {
+  position: relative;
+  border-radius: 12px;
+  background: #121110;
+  border: 1px solid #2E2B26;
+  overflow: hidden;
+}
+
+.spotlight-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle 220px at var(--x) var(--y),
+    var(--spotlight-color),
+    transparent 80%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.spotlight-card:hover::before {
+  opacity: 1;
+}
+
+.spotlight-card-border {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: radial-gradient(
+    circle 160px at var(--x) var(--y),
+    rgba(101, 87, 245, 0.4),
+    transparent 70%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 2;
+}
+
+.spotlight-card:hover .spotlight-card-border {
+  opacity: 1;
+}
+
+.spotlight-card-content {
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+}
+
+

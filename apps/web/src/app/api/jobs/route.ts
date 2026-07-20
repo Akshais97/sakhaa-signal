@@ -59,7 +59,15 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    const res = NextResponse.json({ jobs, workspace: ws });
+    const mappedJobs = jobs.map(job => {
+      const j = { ...job };
+      if (j.status === "SUCCEEDED") {
+        j.status = "COMPLETED" as any;
+      }
+      return j;
+    });
+
+    const res = NextResponse.json({ jobs: mappedJobs, workspace: ws });
     // Set cookie if not set
     const cookieStore = await cookies();
     if (!cookieStore.get("workspace-id")) {

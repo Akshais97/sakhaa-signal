@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import JobWizard from "@/components/JobWizard";
 
 interface Job {
@@ -98,6 +99,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [completedRecs, setCompletedRecs] = useState<Record<string, boolean>>({});
+  const [cancellingJobId, setCancellingJobId] = useState<string | null>(null);
 
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
@@ -207,6 +209,24 @@ export default function Home() {
     }
   };
 
+  const handleCancelJob = async (jobId: string) => {
+    setCancellingJobId(jobId);
+    try {
+      const response = await fetch(`/api/jobs/${jobId}/cancel`, { method: "POST" });
+      if (response.ok) {
+        const data = await response.json();
+        fetchJobs();
+        if (selectedJobId === jobId) {
+          setSelectedJob(data.job);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to cancel job:", error);
+    } finally {
+      setCancellingJobId(null);
+    }
+  };
+
   const toggleRecommendation = (recText: string) => {
     setCompletedRecs((prev) => ({
       ...prev,
@@ -259,6 +279,54 @@ export default function Home() {
     return mapping[state] || state;
   };
 
+  const getProgressPercentage = (status: string) => {
+    switch (status) {
+      case "CREATED":
+        return 0;
+      case "QUEUED":
+        return 5;
+      case "AUTHORIZED":
+        return 10;
+      case "DOWNLOADING_INPUT":
+        return 15;
+      case "VALIDATING":
+        return 20;
+      case "PREPROCESSING":
+        return 30;
+      case "ENCODING_VIDEO":
+        return 40;
+      case "ENCODING_AUDIO":
+        return 50;
+      case "ENCODING_TEXT":
+        return 60;
+      case "BUILDING_FUSED_INPUT":
+      case "RUNNING_TRANSFORMER":
+        return 70;
+      case "EXPORTING_RAW_OUTPUTS":
+      case "DECODING_HEADS":
+        return 80;
+      case "MAPPING_HCP":
+      case "GENERATING_15_CLUSTER_OUTPUTS":
+      case "GENERATING_17_CLUSTER_OUTPUTS":
+        return 85;
+      case "SCORING_MARKETING_OUTCOMES":
+        return 90;
+      case "RUNNING_LLM_EXPLANATION":
+        return 95;
+      case "PACKAGING_RESULTS":
+      case "UPLOADING_ARTIFACTS":
+        return 98;
+      case "COMPLETED":
+        return 100;
+      case "FAILED":
+      case "CANCELLED":
+        return 100;
+      default:
+        if (status.includes("ENCODING")) return 50;
+        return 0;
+    }
+  };
+
   // Filter logic
   const filteredJobs = jobs.filter((job) => {
     const matchesSearch =
@@ -306,9 +374,17 @@ export default function Home() {
         </div>
 
         {/* Live system node status */}
-        <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border border-graphite-subtle bg-graphite-sunken text-[10px] text-graphite-secondary font-mono">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#5BD08C] animate-ping" />
-          <span>Vast.ai GPU Worker Connected</span>
+        <div className="flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border border-graphite-subtle bg-graphite-sunken text-[10px] text-graphite-secondary font-mono">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#5BD08C] animate-ping" />
+            <span>Vast.ai GPU Worker Connected</span>
+          </div>
+          <Link
+            href="/results/demo"
+            className="px-3.5 py-1.5 text-[10px] font-mono font-bold rounded bg-[#6557F5]/10 border border-[#6557F5]/30 text-[#6557F5] hover:bg-[#6557F5] hover:text-white transition-all flex items-center gap-1.5 shadow-[0_0_10px_rgba(101,87,245,0.1)]"
+          >
+            📊 View Demo Report
+          </Link>
         </div>
 
         <div className="flex items-center gap-3">
@@ -476,6 +552,14 @@ export default function Home() {
                   <span className="text-[9px] font-mono text-graphite-tertiary tracking-wider">JOB ID: {selectedJob.id}</span>
                   <h3 className="text-sm font-bold tracking-tight text-[#F3F2EF] truncate mt-0.5">{selectedJob.input.project_name}</h3>
                   <p className="text-[11px] text-graphite-secondary truncate">Asset: {selectedJob.input.video_name}.mp4</p>
+                  {selectedJob.status === "COMPLETED" && (
+                    <Link
+                      href={`/results/${selectedJob.id}`}
+                      className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-iris-primary text-white text-[10px] font-mono font-bold hover:brightness-110 transition-all shadow-[0_0_10px_rgba(101,87,245,0.2)]"
+                    >
+                      🖥️ View Full Report Page →
+                    </Link>
+                  )}
                 </div>
                 <button
                   onClick={() => {
@@ -509,7 +593,35 @@ export default function Home() {
                       Start Execution
                     </button>
                   )}
+                  {selectedJob.status !== "CREATED" && 
+                   selectedJob.status !== "COMPLETED" && 
+                   selectedJob.status !== "FAILED" && 
+                   selectedJob.status !== "CANCELLED" && (
+                    <button
+                      disabled={cancellingJobId === selectedJob.id}
+                      onClick={() => handleCancelJob(selectedJob.id)}
+                      className="px-4 py-1.5 text-xs font-bold rounded bg-[rgba(242,120,108,0.2)] text-[#F2786C] border border-[#F2786C]/40 hover:bg-[rgba(242,120,108,0.3)] disabled:opacity-50 transition-all shadow-[0_0_12px_rgba(242,120,108,0.15)]"
+                    >
+                      {cancellingJobId === selectedJob.id ? "Stopping..." : "Stop Execution"}
+                    </button>
+                  )}
                 </div>
+
+                {/* Progress Bar Container */}
+                {selectedJob.status !== "CREATED" && (
+                  <div className="flex flex-col gap-1.5 mt-1 border-t border-graphite-subtle pt-3">
+                    <div className="flex justify-between text-[10px] font-mono text-graphite-secondary">
+                      <span>Pipeline Progress</span>
+                      <span className="text-iris-primary font-bold">{getProgressPercentage(selectedJob.status)}%</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-[#2E2B26] rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-iris-primary rounded-full transition-all duration-500 ease-out shadow-[0_0_8px_rgba(101,87,245,0.6)]"
+                        style={{ width: `${getProgressPercentage(selectedJob.status)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Pipeline details or Artifact outputs */}
@@ -916,8 +1028,11 @@ export default function Home() {
                     </div>
 
                     <div className="h-44 overflow-y-auto custom-scrollbar font-mono text-[10px] flex flex-col gap-1.5 text-graphite-secondary leading-relaxed pr-1 select-text">
-                      {getConsoleLogsForStatus(selectedJob.status).map((log, index) => (
-                        <div key={index} className={log.includes("[ERROR]") ? "text-[#F2786C]" : log.includes("[SUCCESS]") || log.includes("[OK]") ? "text-[#5BD08C]" : ""}>
+                      {(selectedJob.logs && selectedJob.logs.length > 0
+                        ? selectedJob.logs
+                        : getConsoleLogsForStatus(selectedJob.status)
+                      ).map((log: string, index: number) => (
+                        <div key={index} className={log.includes("[ERROR]") ? "text-[#F2786C]" : log.includes("[SUCCESS]") || log.includes("[OK]") || log.includes("SUCCESS") ? "text-[#5BD08C]" : log.includes("[PROGRESS]") ? "text-iris-primary font-semibold" : ""}>
                           {log}
                         </div>
                       ))}

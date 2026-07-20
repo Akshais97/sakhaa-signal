@@ -47,7 +47,7 @@ export async function GET(
 
     return NextResponse.json({
       job_id,
-      status: job.status,
+      status: job.status === "SUCCEEDED" ? "COMPLETED" : job.status,
       artifacts
     });
   } catch (error: any) {

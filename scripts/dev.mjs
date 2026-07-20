@@ -9,7 +9,7 @@ const rootDir = path.resolve(__dirname, "..");
 const devGpuScript = `"${path.join(rootDir, "scripts", "dev-gpu.mjs")}"`;
 
 const services = [
-  ["web", "pnpm", ["--filter", "web", "dev"], { PORT: "3000" }],
+  ["web", "pnpm", ["--filter", "web", "dev"], { PORT: process.env.PORT || "3000" }],
   ["gpu-worker", "node", [devGpuScript], {}]
 ];
 
