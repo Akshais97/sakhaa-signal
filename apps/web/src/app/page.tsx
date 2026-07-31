@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import JobWizard from "@/components/JobWizard";
+import SignalJobWizard from "@/components/SignalJobWizard";
 
 interface Job {
   id: string;
@@ -88,6 +89,7 @@ export default function Home() {
   const [workspace, setWorkspace] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [isSignalWizardOpen, setIsSignalWizardOpen] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<any>(null);
   const [artifacts, setArtifacts] = useState<any>(null);
@@ -408,12 +410,21 @@ export default function Home() {
               <h2 className="text-base font-bold tracking-tight text-[#F3F2EF]">Scoring Job Repository</h2>
               <p className="text-xs text-graphite-secondary mt-0.5">Neuromarketing creative tests & predictive parcellation lineage</p>
             </div>
-            <button
-              onClick={() => setIsWizardOpen(true)}
-              className="px-4 py-2.5 text-xs font-bold rounded bg-iris-primary text-white hover:brightness-110 transition-all flex items-center gap-1.5 shadow-[0_0_20px_rgba(101,87,245,0.2)]"
-            >
-              <span>+</span> New Scorer Job
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setIsSignalWizardOpen(true)}
+                className="px-4 py-2.5 text-xs font-bold rounded bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:brightness-110 transition-all flex items-center gap-1.5 shadow-[0_0_20px_rgba(99,102,241,0.3)]"
+              >
+                <span>✨</span> New Creative Analysis (Static/Video)
+              </button>
+
+              <button
+                onClick={() => setIsWizardOpen(true)}
+                className="px-3.5 py-2.5 text-xs font-semibold rounded bg-graphite-sunken text-slate-300 hover:text-white border border-graphite-subtle hover:border-slate-700 transition-all flex items-center gap-1.5"
+              >
+                <span>⚡</span> Legacy TribeV2 Scorer
+              </button>
+            </div>
           </div>
 
           {/* Search and Filters bar */}
@@ -526,11 +537,7 @@ export default function Home() {
                     ) : (
                       <div className="pt-2 border-t border-graphite-subtle/50 flex justify-between items-center text-[9px] font-mono text-graphite-tertiary">
                         <span>Mode: c_{job.input.cluster_mode} / {job.input.output_mode === "full_export" ? "Full" : "Score"}</span>
-                        <span>{new Date(job.createdAt).toLocaleDateString("en-GB", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric"
-                        })}</span>
+                        <span suppressHydrationWarning>{job.createdAt ? new Date(job.createdAt).toISOString().split("T")[0] : ""}</span>
                       </div>
                     )}
                   </div>
@@ -1157,6 +1164,19 @@ export default function Home() {
             fetchJobs();
           }}
           onClose={() => setIsWizardOpen(false)}
+        />
+      )}
+
+      {/* SignalJobWizard Modal Overlay */}
+      {isSignalWizardOpen && (
+        <SignalJobWizard
+          isOpen={isSignalWizardOpen}
+          onClose={() => setIsSignalWizardOpen(false)}
+          onJobCreated={(jobId) => {
+            setIsSignalWizardOpen(false);
+            fetchJobs();
+            window.location.href = `/analysis/${jobId}`;
+          }}
         />
       )}
     </div>
