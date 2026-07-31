@@ -78,7 +78,11 @@ export default function JobWizard({ onJobCreated, onClose }: JobWizardProps) {
       const job_id = job.id;
 
       // 2. Request upload URL
-      const urlResponse = await fetch(`/api/jobs/${job_id}/upload-url`, { method: "POST" });
+      const urlResponse = await fetch(`/api/jobs/${job_id}/upload-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentType: file.type || "video/mp4" }),
+      });
       if (!urlResponse.ok) throw new Error("Failed to get presigned upload URL");
       const { uploadUrl } = await urlResponse.json();
 

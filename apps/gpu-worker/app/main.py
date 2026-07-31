@@ -1,5 +1,6 @@
 import os
 import uuid
+import requests
 from typing import Dict, Any, Optional
 from contextlib import asynccontextmanager
 from app.pipeline import run_pipeline
@@ -26,6 +27,15 @@ async def lifespan(app: FastAPI):
         print(f"[STARTUP SUCCESS] PyTorch imported. CUDA available: {health_status['cuda_available']} ({health_status['device_name']})")
     except Exception as e:
         print(f"[STARTUP WARNING] Failed to import PyTorch or check CUDA: {e}")
+
+    # Check for Hugging Face Token in production mode
+    provider = os.environ.get("OBJECT_STORAGE_PROVIDER")
+    if provider in ["s3", "b2"]:
+        hf_token = os.environ.get("HF_TOKEN")
+        if not hf_token:
+            print("[STARTUP WARNING] HF_TOKEN is missing from container environment! Meta TRIBE v2 models are gated and will fail to download without an authenticated HuggingFace token.")
+        else:
+            print("[STARTUP] HF_TOKEN found in environment. Model downloader initialized.")
     yield
 
 app = FastAPI(title="TribeV2 GPU Worker API", version="1.0.0", lifespan=lifespan)
@@ -62,9 +72,39 @@ class JobPayload(BaseModel):
     campaign_name: Optional[str] = None
     target_audience: Optional[str] = None
     creative_objective: Optional[str] = None
+    callback_url: Optional[str] = None
 
 # In-memory job state store for development
 jobs_db: Dict[str, Dict[str, Any]] = {}
+
+def send_status_callback(job_id: str, status: str, error_message: str = None, manifest: dict = None):
+    # Retrieve callback URL from jobs_db
+    job_info = jobs_db.get(job_id, {})
+    callback_url = job_info.get("payload", {}).get("callback_url")
+    if not callback_url:
+        return
+        
+    token = get_worker_token()
+    payload = {
+        "status": status,
+        "error_message": error_message,
+        "manifest": manifest
+    }
+    
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        print(f"[CALLBACK] Sending status update to {callback_url}: {status}")
+        response = requests.post(callback_url, json=payload, headers=headers, timeout=5)
+        if not response.ok:
+            print(f"[CALLBACK WARNING] Next.js callback rejected update: {response.status_code} {response.text}")
+        else:
+            print(f"[CALLBACK SUCCESS] Successfully reported status: {status}")
+    except Exception as e:
+        print(f"[CALLBACK ERROR] Failed to send status callback to {callback_url}: {e}")
 
 def process_job_async(job_id: str, payload: JobPayload):
     def update_status(state: str):
@@ -72,9 +112,12 @@ def process_job_async(job_id: str, payload: JobPayload):
         if jobs_db.get(job_id, {}).get("status") == "CANCELLED":
             raise ValueError("Job cancelled by user")
         jobs_db[job_id]["status"] = state
+        send_status_callback(job_id, state)
 
     try:
         jobs_db[job_id]["status"] = "AUTHORIZED"
+        send_status_callback(job_id, "AUTHORIZED")
+        
         result = run_pipeline(job_id, payload.model_dump(), update_status)
         
         # Check one last time before marking complete
@@ -84,12 +127,15 @@ def process_job_async(job_id: str, payload: JobPayload):
         # Set final completion state and manifest
         jobs_db[job_id]["status"] = "COMPLETED"
         jobs_db[job_id]["manifest"] = result.get("manifest")
+        send_status_callback(job_id, "COMPLETED", manifest=result.get("manifest"))
     except Exception as e:
         if str(e) == "Job cancelled by user" or jobs_db.get(job_id, {}).get("status") == "CANCELLED":
             jobs_db[job_id]["status"] = "CANCELLED"
+            send_status_callback(job_id, "CANCELLED")
         else:
             jobs_db[job_id]["status"] = "FAILED"
             jobs_db[job_id]["error_message"] = str(e)
+            send_status_callback(job_id, "FAILED", error_message=str(e))
 
 # Endpoints
 @app.get("/health")

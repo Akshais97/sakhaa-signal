@@ -3,6 +3,43 @@ import path from "path";
 import fs from "fs/promises";
 import prisma from "@/lib/db";
 import { JobStatus } from "@sakhaa-forge/db";
+import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+
+async function fetchLogsFromS3(jobId: string): Promise<string[]> {
+  const storageProvider = process.env.OBJECT_STORAGE_PROVIDER;
+  if (storageProvider !== "s3" && storageProvider !== "b2") return [];
+
+  const endpoint = process.env.AWS_ENDPOINT_URL || process.env.OBJECT_STORAGE_ENDPOINT;
+  const region = process.env.AWS_DEFAULT_REGION || process.env.OBJECT_STORAGE_REGION || "eu-central-003";
+  const accessKeyId = process.env.AWS_ACCESS_KEY_ID || process.env.OBJECT_STORAGE_KEY_ID;
+  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY || process.env.OBJECT_STORAGE_APPLICATION_KEY;
+  const bucket = process.env.B2_BUCKET_PRIVATE_ARTIFACTS || "v0-local-artifacts";
+
+  if (!accessKeyId || !secretAccessKey || !endpoint) return [];
+
+  try {
+    const s3Client = new S3Client({
+      endpoint,
+      region,
+      credentials: { accessKeyId, secretAccessKey },
+      forcePathStyle: true,
+    });
+
+    const command = new GetObjectCommand({
+      Bucket: bucket,
+      Key: `exports/${jobId}/execution_logs.txt`,
+    });
+
+    const response = await s3Client.send(command);
+    const bodyStr = await response.Body?.transformToString();
+    if (bodyStr) {
+      return bodyStr.split("\n").map(l => l.trim()).filter(Boolean);
+    }
+  } catch (err) {
+    console.error("[CONTROL API] Failed to download execution logs from S3:", err);
+  }
+  return [];
+}
 
 export async function GET(
   req: NextRequest,
@@ -30,7 +67,11 @@ export async function GET(
       const logContent = await fs.readFile(localLogPath, "utf-8");
       logs = logContent.split("\n").map(l => l.trim()).filter(Boolean);
     } catch (err) {
-      // Local file not present, logs will be fetched from GPU worker instead
+      // Local file not present, try downloading from S3/B2 in production
+      const storageProvider = process.env.OBJECT_STORAGE_PROVIDER;
+      if (storageProvider === "s3" || storageProvider === "b2") {
+        logs = await fetchLogsFromS3(job_id);
+      }
     }
 
     // 2. Pull status and logs from GPU worker if job is active in the database

@@ -2,39 +2,88 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import crypto from "node:crypto";
 import prisma from "@/lib/db";
+import { createServerClient } from "@supabase/ssr";
 
-// Helper to get active workspace or seed default
-async function getOrCreateActiveWorkspace() {
+// Helper to get authenticated user and active workspace
+async function getAuthenticatedSession() {
   const cookieStore = await cookies();
-  let workspaceId = cookieStore.get("workspace-id")?.value;
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {}
+        },
+      },
+    }
+  );
 
-  if (workspaceId) {
-    const ws = await prisma.workspace.findUnique({
-      where: { id: workspaceId },
-    });
-    if (ws) return ws;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error("Unauthorized: Session not found");
   }
 
-  // Fallback: check if any workspace exists
-  let ws = await prisma.workspace.findFirst({
-    where: { status: "ACTIVE" },
+  // Ensure user exists in our local Prisma users table
+  let dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
   });
 
-  if (!ws) {
-    // Seed default user & workspace
-    const userId = crypto.randomUUID();
-    const user = await prisma.user.create({
+  if (!dbUser) {
+    dbUser = await prisma.user.create({
       data: {
-        id: userId,
-        email: "demo-user@tribev2.local",
-        displayName: "Demo User",
+        id: user.id,
+        email: user.email,
+        displayName: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "User",
+        status: "ACTIVE",
       },
     });
+  }
 
+  // Get active workspace cookie if set
+  let workspaceId = cookieStore.get("workspace-id")?.value;
+  let ws = null;
+
+  if (workspaceId) {
+    ws = await prisma.workspace.findFirst({
+      where: {
+        id: workspaceId,
+        status: "ACTIVE",
+        memberships: { some: { userId: user.id } }
+      },
+    });
+  }
+
+  // If no workspace is active/authorized, get the first workspace membership
+  if (!ws) {
+    const membership = await prisma.membership.findFirst({
+      where: {
+        userId: user.id,
+        workspace: { status: "ACTIVE" },
+      },
+      include: { workspace: true },
+    });
+    
+    if (membership) {
+      ws = membership.workspace;
+    }
+  }
+
+  // If still no workspace, dynamically seed a default one for this user
+  if (!ws) {
+    const name = `${user.email?.split("@")[0] || "User"}'s Workspace`;
+    const slug = `workspace-${user.id.substring(0, 8)}`;
     ws = await prisma.workspace.create({
       data: {
-        name: "Demo Workspace",
-        slug: "demo-workspace",
+        name,
+        slug,
         memberships: {
           create: {
             userId: user.id,
@@ -45,12 +94,12 @@ async function getOrCreateActiveWorkspace() {
     });
   }
 
-  return ws;
+  return { user, workspace: ws };
 }
 
 export async function GET(req: NextRequest) {
   try {
-    const ws = await getOrCreateActiveWorkspace();
+    const { workspace: ws } = await getAuthenticatedSession();
     const jobs = await prisma.job.findMany({
       where: {
         workspaceId: ws.id,
@@ -70,7 +119,7 @@ export async function GET(req: NextRequest) {
     const res = NextResponse.json({ jobs: mappedJobs, workspace: ws });
     // Set cookie if not set
     const cookieStore = await cookies();
-    if (!cookieStore.get("workspace-id")) {
+    if (!cookieStore.get("workspace-id") || cookieStore.get("workspace-id")?.value !== ws.id) {
       res.cookies.set("workspace-id", ws.id, { path: "/" });
     }
     return res;
@@ -84,7 +133,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const ws = await getOrCreateActiveWorkspace();
+    const { workspace: ws } = await getAuthenticatedSession();
     const body = await req.json();
 
     const {

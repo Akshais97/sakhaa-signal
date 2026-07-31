@@ -16,14 +16,18 @@ export async function POST(
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
-    // Prepare GPU payload from stored database input metadata
-    const payload = job.input;
+    // Prepare GPU payload and append dynamic callback url
+    const callbackUrl = `${req.nextUrl.origin}/api/jobs/${job_id}/callback`;
+    const payload = {
+      ...(job.input as any),
+      callback_url: callbackUrl,
+    };
 
     // Load worker security token (default to local dev fallback)
     const workerToken = process.env.GPU_WORKER_TOKEN || "dev-worker-token-123";
     const gpuWorkerUrl = process.env.GPU_WORKER_URL || "http://localhost:8000";
 
-    console.log(`[CONTROL API] Forwarding job ${job_id} to GPU worker at ${gpuWorkerUrl}...`);
+    console.log(`[CONTROL API] Forwarding job ${job_id} to GPU worker at ${gpuWorkerUrl}... Callback URL: ${callbackUrl}`);
 
     const response = await fetch(`${gpuWorkerUrl}/api/gpu/jobs/run`, {
       method: "POST",
