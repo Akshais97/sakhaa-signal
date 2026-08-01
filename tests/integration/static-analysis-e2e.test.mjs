@@ -42,7 +42,7 @@ test("End-to-End Static Analysis Pipeline — From Sample Upload to Final Result
   const testWorkspaceId = crypto.randomUUID();
   const testArtifactId = crypto.randomUUID();
   const testJobId = crypto.randomUUID();
-  const selectedModel = "gpt-4o";
+  const selectedModel = "gpt-5.6-sol";
 
   // 1. Create Test Workspace
   const workspace = await prisma.workspace.create({

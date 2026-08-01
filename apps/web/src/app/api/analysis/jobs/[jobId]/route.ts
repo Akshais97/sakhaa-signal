@@ -1,43 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import prisma from "@/lib/db";
-import { createServerClient } from "@supabase/ssr";
-
-async function getAuthenticatedSession() {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {}
-        },
-      },
-    }
-  );
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    throw new Error("Unauthorized: Session not found");
-  }
-
-  return { user };
-}
+import { getAuthenticatedSession } from "@/lib/auth";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ jobId: string }> }
 ) {
   try {
-    const { user } = await getAuthenticatedSession();
+    const { user, workspace: ws } = await getAuthenticatedSession();
     const { jobId } = await params;
 
     const job = await prisma.analysisJob.findUnique({
@@ -47,9 +17,6 @@ export async function GET(
           select: {
             id: true,
             name: true,
-            memberships: {
-              where: { userId: user.id },
-            },
           },
         },
         stages: {
@@ -63,12 +30,24 @@ export async function GET(
       },
     });
 
-    if (!job || job.workspace.memberships.length === 0) {
-      return NextResponse.json({ error: "Job not found or access denied" }, { status: 404 });
+    if (!job) {
+      return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    }
+
+    // Access check: allow if job belongs to active workspace OR if user is a member of job's workspace
+    const isWorkspaceMatch = job.workspaceId === ws.id;
+    if (!isWorkspaceMatch) {
+      const membership = await prisma.membership.findFirst({
+        where: { workspaceId: job.workspaceId, userId: user.id },
+      });
+      if (!membership) {
+        return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      }
     }
 
     return NextResponse.json({ job });
   } catch (error: any) {
+    console.error("[GET_ANALYSIS_JOB_ERROR]", error);
     return NextResponse.json(
       { error: "Failed to fetch analysis job", details: error.message },
       { status: 500 }

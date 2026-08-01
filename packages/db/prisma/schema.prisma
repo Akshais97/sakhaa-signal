@@ -794,7 +794,7 @@ model EvidenceObservation {
   id              String      @id @default(uuid()) @db.Uuid
   analysisJobId   String      @map("analysis_job_id") @db.Uuid
   observationType String      @map("observation_type") @db.VarChar(120) // LOGO_DETECTION, OCR_TEXT, SHOT_BOUNDARY, YAMNET_EVENT, etc.
-  label           String?     @db.VarChar(240)
+  label           String?     @db.Text
   startMs         Int?        @map("start_ms")
   endMs           Int?        @map("end_ms")
   boundingBox     Json?       @map("bounding_box") // {x, y, width, height}
@@ -814,8 +814,8 @@ model RuleResult {
   analysisJobId String      @map("analysis_job_id") @db.Uuid
   ruleCode      String      @map("rule_code") @db.VarChar(120)
   status        String      @db.VarChar(40) // PASS, FAIL, NOT_APPLICABLE, UNKNOWN
-  expected      String?     @db.VarChar(300)
-  actual        String?     @db.VarChar(300)
+  expected      String?     @db.Text
+  actual        String?     @db.Text
   severity      String      @default("MEDIUM") @db.VarChar(40) // HIGH, MEDIUM, LOW
   evidenceIds   Json?       @map("evidence_ids")
   createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)

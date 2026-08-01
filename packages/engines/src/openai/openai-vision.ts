@@ -126,7 +126,9 @@ export async function analyzeStaticCreativeWithOpenAI(
   };
 
   try {
-    const response = await openai.chat.completions.create({
+    const isReasoningModel = /sol|o1|o3/i.test(selectedModel);
+
+    const requestOptions: any = {
       model: selectedModel,
       response_format: { type: "json_object" },
       messages: [
@@ -151,8 +153,13 @@ export async function analyzeStaticCreativeWithOpenAI(
           ],
         },
       ],
-      temperature: 0.2,
-    });
+    };
+
+    if (!isReasoningModel) {
+      requestOptions.temperature = 0.2;
+    }
+
+    const response = await openai.chat.completions.create(requestOptions);
 
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("Empty response received from OpenAI API.");
