@@ -23,6 +23,13 @@ export async function PUT(req: NextRequest) {
     const arrayBuffer = await req.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
+    if (!buffer || buffer.byteLength === 0) {
+      return NextResponse.json(
+        { error: "Uploaded file is empty or corrupted (0 bytes received). Please re-upload a valid image file." },
+        { status: 400 }
+      );
+    }
+
     // Save file
     await writeFile(filePath, buffer);
     console.log(`[STORAGE SIMULATOR] Upload saved to: ${filePath} (${buffer.byteLength} bytes)`);

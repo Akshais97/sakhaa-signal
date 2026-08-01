@@ -12,7 +12,6 @@
     "dev": "node scripts/dev.mjs",
     "dev:web": "pnpm --filter web dev",
     "dev:gpu": "node scripts/dev-gpu.mjs",
-
     "services:up": "node scripts/services.mjs up",
     "services:down": "node scripts/services.mjs down",
     "generate": "node scripts/generate-contracts.mjs",
@@ -29,5 +28,9 @@
     "db:migrate:dev": "node packages/db/scripts/db-migrate-dev.mjs",
     "db:validate": "node packages/db/scripts/db-validate.mjs",
     "verify": "node scripts/verify.mjs"
+  },
+  "devDependencies": {
+    "chromedriver": "^151.0.1",
+    "selenium-webdriver": "^4.46.0"
   }
 }

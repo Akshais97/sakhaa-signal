@@ -7,6 +7,7 @@
   "types": "./generated/client/index.d.ts",
   "scripts": {
     "generate": "node scripts/db-generate.mjs",
+    "db:push": "node scripts/db-push.mjs",
     "migrate:dev": "node scripts/db-migrate-dev.mjs",
     "validate": "node scripts/db-validate.mjs"
   },

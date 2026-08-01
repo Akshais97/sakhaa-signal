@@ -12,11 +12,15 @@ try {
 }
 
 const command = process.execPath;
+const schemaPath = existsSync(resolve("prisma/schema.prisma"))
+  ? resolve("prisma/schema.prisma")
+  : resolve("packages/db/prisma/schema.prisma");
+
 const args = [
   resolvePrismaEntrypoint(),
   "generate",
   "--schema",
-  resolve("packages/db/prisma/schema.prisma")
+  schemaPath
 ];
 const result = spawnSync(command, args, {
   stdio: "inherit"
@@ -32,6 +36,10 @@ function resolvePrismaEntrypoint() {
   const local = resolve("packages/db/node_modules/prisma/build/index.js");
   if (existsSync(local)) {
     return local;
+  }
+  const rootPrisma = resolve("node_modules/prisma/build/index.js");
+  if (existsSync(rootPrisma)) {
+    return rootPrisma;
   }
   throw new Error("Prisma CLI entrypoint not found. Run pnpm install before db:generate.");
 }

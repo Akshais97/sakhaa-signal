@@ -98,6 +98,7 @@ model Workspace {
   videoBlueprints VideoBlueprint[]
   blueprintScenes BlueprintScene[]
   inboxEvents InboxEvent[]
+  analysisJobs AnalysisJob[]
   jobs Job[]
   jobAttempts JobAttempt[]
   jobEvents JobEvent[]
@@ -716,3 +717,162 @@ model InboxEvent {
   @@index([workspaceId, createdAt])
   @@map("inbox_events")
 }
+
+// -----------------------------------------------------------------------------
+// Sakhaa Signal V1 — Creative Intelligence Models
+// -----------------------------------------------------------------------------
+
+enum AnalysisMode {
+  STATIC_STANDARD
+  VIDEO_STANDARD
+  FULL_WITH_TRIBEV2
+
+  @@map("analysis_mode")
+}
+
+model AnalysisJob {
+  id              String                @id @default(uuid()) @db.Uuid
+  workspaceId     String                @map("workspace_id") @db.Uuid
+  title           String?               @db.VarChar(240)
+  mode            AnalysisMode
+  status          JobStatus             @default(QUEUED)
+  progressPercent Int                   @default(0) @map("progress_percent")
+  currentStage    String?               @map("current_stage") @db.VarChar(120)
+  
+  // Media Input
+  inputArtifactId String                @map("input_artifact_id") @db.Uuid
+  inputObjectKey  String                @map("input_object_key") @db.VarChar(500)
+  mediaType       String                @map("media_type") @db.VarChar(80) // image or video
+  durationSeconds Float?                @map("duration_seconds")
+  
+  // Optional Campaign Context
+  brandName        String?              @map("brand_name") @db.VarChar(160)
+  targetPlatform   String?              @map("target_platform") @db.VarChar(80)
+  placement        String?              @map("placement") @db.VarChar(80)
+  creativeGoal     String?              @map("creative_goal") @db.VarChar(240)
+  selectedModel    String?              @map("selected_model") @db.VarChar(80)
+  
+  // Lease Management
+  leaseOwner       String?              @map("lease_owner") @db.VarChar(160)
+  leaseExpiresAt   DateTime?            @map("lease_expires_at") @db.Timestamptz(6)
+  
+  errorMessage     String?              @map("error_message") @db.Text
+  completedAt      DateTime?            @map("completed_at") @db.Timestamptz(6)
+  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace        Workspace            @relation(fields: [workspaceId], references: [id])
+  stages           AnalysisStage[]
+  evidence         EvidenceObservation[]
+  ruleResults      RuleResult[]
+  categoryScores   CategoryScore[]
+  findings         Finding[]
+  reports          ReportArtifact[]
+
+  @@index([workspaceId, status, createdAt])
+  @@index([status, leaseExpiresAt])
+  @@map("analysis_jobs")
+}
+
+model AnalysisStage {
+  id            String      @id @default(uuid()) @db.Uuid
+  analysisJobId String      @map("analysis_job_id") @db.Uuid
+  stageName     String      @map("stage_name") @db.VarChar(120)
+  stageOrder    Int         @default(1) @map("stage_order")
+  status        JobStatus   @default(QUEUED)
+  startedAt     DateTime?   @map("started_at") @db.Timestamptz(6)
+  completedAt   DateTime?   @map("completed_at") @db.Timestamptz(6)
+  metadata      Json?
+  
+  analysisJob   AnalysisJob @relation(fields: [analysisJobId], references: [id], onDelete: Cascade)
+
+  @@index([analysisJobId, stageName])
+  @@map("analysis_stages")
+}
+
+model EvidenceObservation {
+  id              String      @id @default(uuid()) @db.Uuid
+  analysisJobId   String      @map("analysis_job_id") @db.Uuid
+  observationType String      @map("observation_type") @db.VarChar(120) // LOGO_DETECTION, OCR_TEXT, SHOT_BOUNDARY, YAMNET_EVENT, etc.
+  label           String?     @db.Text
+  startMs         Int?        @map("start_ms")
+  endMs           Int?        @map("end_ms")
+  boundingBox     Json?       @map("bounding_box") // {x, y, width, height}
+  confidence      Float       @default(1.0)
+  provider        String      @db.VarChar(120) // GOOGLE_VISION, GOOGLE_VIDEO_INTELLIGENCE, GROQ_WHISPER, YAMNET, OPENCV
+  rawMetadata     Json?       @map("raw_metadata")
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  analysisJob     AnalysisJob @relation(fields: [analysisJobId], references: [id], onDelete: Cascade)
+
+  @@index([analysisJobId, observationType])
+  @@map("evidence_observations")
+}
+
+model RuleResult {
+  id            String      @id @default(uuid()) @db.Uuid
+  analysisJobId String      @map("analysis_job_id") @db.Uuid
+  ruleCode      String      @map("rule_code") @db.VarChar(120)
+  status        String      @db.VarChar(40) // PASS, FAIL, NOT_APPLICABLE, UNKNOWN
+  expected      String?     @db.Text
+  actual        String?     @db.Text
+  severity      String      @default("MEDIUM") @db.VarChar(40) // HIGH, MEDIUM, LOW
+  evidenceIds   Json?       @map("evidence_ids")
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  analysisJob   AnalysisJob @relation(fields: [analysisJobId], references: [id], onDelete: Cascade)
+
+  @@index([analysisJobId, ruleCode])
+  @@map("rule_results")
+}
+
+model CategoryScore {
+  id            String      @id @default(uuid()) @db.Uuid
+  analysisJobId String      @map("analysis_job_id") @db.Uuid
+  category      String      @db.VarChar(120) // HOOK, COPY_CLARITY, CTA, VISUAL_CONSTRUCTION, BRANDING, COMPLIANCE, TRIBE_EP, TRIBE_VP, TRIBE_CS, TRIBE_BR
+  score         Float       // 0 to 100
+  confidence    Float       @default(1.0)
+  weight        Float       @default(1.0)
+  breakdown     Json?       // Input factors and calculations
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  analysisJob   AnalysisJob @relation(fields: [analysisJobId], references: [id], onDelete: Cascade)
+
+  @@index([analysisJobId, category])
+  @@map("category_scores")
+}
+
+model Finding {
+  id             String      @id @default(uuid()) @db.Uuid
+  analysisJobId  String      @map("analysis_job_id") @db.Uuid
+  type           String      @db.VarChar(60) // STRENGTH, WEAKNESS, RECOMMENDATION
+  category       String      @db.VarChar(120)
+  title          String      @db.VarChar(240)
+  description    String      @db.Text
+  recommendation String?     @map("recommendation") @db.Text
+  impactPriority String      @default("MEDIUM") @map("impact_priority") @db.VarChar(40) // HIGH, MEDIUM, LOW
+  timestampMs    Int?        @map("timestamp_ms")
+  evidenceIds    Json?       @map("evidence_ids")
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  analysisJob    AnalysisJob @relation(fields: [analysisJobId], references: [id], onDelete: Cascade)
+
+  @@index([analysisJobId, type])
+  @@map("findings")
+}
+
+model ReportArtifact {
+  id            String      @id @default(uuid()) @db.Uuid
+  analysisJobId String      @map("analysis_job_id") @db.Uuid
+  reportType    String      @map("report_type") @db.VarChar(80) // INTERACTIVE_WEB, FULL_JSON, ZIP_BUNDLE
+  objectKey     String      @map("object_key") @db.VarChar(500)
+  schemaVersion String      @map("schema_version") @db.VarChar(40)
+  summaryJson   Json        @map("summary_json")
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  analysisJob   AnalysisJob @relation(fields: [analysisJobId], references: [id], onDelete: Cascade)
+
+  @@index([analysisJobId, reportType])
+  @@map("report_artifacts")
+}
+

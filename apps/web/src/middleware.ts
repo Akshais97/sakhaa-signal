@@ -39,8 +39,11 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/auth/callback");
 
+  const isApiRoute = request.nextUrl.pathname.startsWith("/api/");
+  const isDevBypass = process.env.NODE_ENV !== "production" || process.env.ALLOW_DEV_BYPASS === "true";
+
   // Redirect to login if user is not authenticated and is trying to access a protected page
-  if (!user && !isAuthPage) {
+  if (!user && !isAuthPage && !isApiRoute && !isDevBypass) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", request.nextUrl.pathname);
     return NextResponse.redirect(loginUrl);
