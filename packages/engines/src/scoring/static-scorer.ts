@@ -1,6 +1,7 @@
 import { StaticRuleResult } from "../rules/static-rules.js";
 import { VisionAnalysisResult } from "../cv/google-vision.js";
 import { ImageInspectionResult } from "../preprocessing/image-inspector.js";
+import cesWeights from "./ces-weights.json" with { type: "json" };
 
 export interface CategoryScoreOutput {
   category: "HOOK" | "COPY_CLARITY" | "CTA" | "VISUAL_CONSTRUCTION" | "BRANDING" | "COMPLIANCE";
@@ -11,14 +12,19 @@ export interface CategoryScoreOutput {
 }
 
 export interface StaticScoringResult {
-  overallScore: number;
+  overallScore: number; // Creative Effectiveness Score (CES)
   categoryScores: CategoryScoreOutput[];
+  appliedRules: string[];
+  confidenceInterval: [number, number];
+  vertical?: string;
+  objective?: string;
 }
 
 export function computeStaticCategoryScores(
   inspection: ImageInspectionResult,
   vision: VisionAnalysisResult,
-  rules: StaticRuleResult[]
+  rules: StaticRuleResult[],
+  campaignContext?: { targetPlatform?: string; brandName?: string; creativeGoal?: string }
 ): StaticScoringResult {
   const getRule = (code: string) => rules.find((r) => r.ruleCode === code);
 
@@ -59,11 +65,48 @@ export function computeStaticCategoryScores(
     { category: "COMPLIANCE", score: complianceScore, confidence: 0.95, weight: 0.10, breakdown: { passCount, totalRules: rules.length } },
   ];
 
-  const weightedSum = categoryScores.reduce((sum, c) => sum + c.score * c.weight, 0);
-  const overallScore = Math.round(weightedSum);
+  // Weighted composite baseline
+  const rawWeightedSum = categoryScores.reduce((sum, c) => sum + c.score * c.weight, 0);
+  let currentScore = Math.round(rawWeightedSum);
+
+  const appliedRules: string[] = [];
+
+  // Apply Boost Rules
+  if (hookScore >= 85) {
+    currentScore += 3;
+    appliedRules.push("boost:exceptional_hook");
+  }
+  if (ctaScore >= 90 && brandRule?.status === "PASS") {
+    currentScore += 2;
+    appliedRules.push("boost:exceptional_brand");
+  }
+
+  // Apply Hard Caps
+  if (inspection.isBlurry) {
+    currentScore = Math.min(currentScore, 60);
+    appliedRules.push("cap:low_ocr_confidence");
+  }
+  if (ctaRule?.status !== "PASS" && campaignContext?.targetPlatform === "STATIC_GOOGLE") {
+    currentScore = Math.min(currentScore, 50);
+    appliedRules.push("cap:no_cta_on_conversion");
+  }
+  if (passCount < rules.length / 2) {
+    currentScore = Math.min(currentScore, 55);
+    appliedRules.push("cap:missing_mandatory_disclosure");
+  }
+
+  const finalCES = Math.min(100, Math.max(0, currentScore));
+  const confidenceInterval: [number, number] = [
+    Math.max(0, finalCES - 6),
+    Math.min(100, finalCES + 6)
+  ];
 
   return {
-    overallScore,
+    overallScore: finalCES,
     categoryScores,
+    appliedRules,
+    confidenceInterval,
+    vertical: "generic",
+    objective: campaignContext?.targetPlatform || "STATIC_META",
   };
 }

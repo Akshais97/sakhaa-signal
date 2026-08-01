@@ -75,6 +75,9 @@ export async function processJob(job: any) {
     await updateStage(job.id, "DOWNLOAD_AND_VALIDATE", "SUCCEEDED", 20);
 
     const imageBuffer = await readFile(localInputPath);
+    if (!imageBuffer || imageBuffer.byteLength === 0) {
+      throw new Error(`Downloaded media file (${job.inputObjectKey}) is empty (0 bytes). Please re-upload a valid image file.`);
+    }
 
     // 2. Preprocessing Stage (Inspection)
     await updateStage(job.id, "PREPROCESSING", "RUNNING", 30);
@@ -134,7 +137,11 @@ export async function processJob(job: any) {
 
     // 5. Deterministic Scoring Stage
     await updateStage(job.id, "DETERMINISTIC_SCORING", "RUNNING", 85);
-    const scoring = computeStaticCategoryScores(inspection, vision, rules);
+    const scoring = computeStaticCategoryScores(inspection, vision, rules, {
+      targetPlatform: job.targetPlatform,
+      brandName: job.brandName,
+      creativeGoal: job.creativeGoal,
+    });
 
     for (const cs of scoring.categoryScores) {
       await prisma.categoryScore.create({
@@ -162,7 +169,7 @@ export async function processJob(job: any) {
           description: f.description,
           recommendation: f.recommendation,
           impactPriority: f.impactPriority,
-          evidenceIds: f.evidenceIds ? (f.evidenceIds as any) : undefined,
+          evidenceIds: (f.evidenceRefs && f.evidenceRefs.length > 0) ? (f.evidenceRefs as any) : (f.evidenceIds as any),
         },
       });
     }
@@ -178,6 +185,8 @@ export async function processJob(job: any) {
       status: "SUCCEEDED",
       selectedModel: vision.modelUsed,
       overallScore: scoring.overallScore,
+      confidenceInterval: scoring.confidenceInterval || vision.confidenceInterval,
+      appliedRules: scoring.appliedRules || [],
       inspection,
       visionSummary: {
         extractedText: vision.extractedText,
@@ -188,8 +197,12 @@ export async function processJob(job: any) {
         dominantColors: vision.dominantColors,
       },
       categoryScores: scoring.categoryScores,
+      rawMetrics: vision.rawMetrics,
       rules,
       executiveSummary: vision.executiveSummary,
+      findings: vision.findings,
+      quickWins: vision.quickWins || [],
+      abVariantHypotheses: vision.abVariantHypotheses || [],
       suggestedActionPlan: vision.suggestedActionPlan,
       completedAt: new Date().toISOString(),
     };

@@ -11,6 +11,10 @@ export interface SynthesisFinding {
   description: string;
   recommendation?: string;
   impactPriority: "HIGH" | "MEDIUM" | "LOW";
+  effortEstimate?: "LOW" | "MEDIUM" | "HIGH";
+  expectedLift?: string;
+  verticalBenchmarkDelta?: number;
+  evidenceRefs?: string[];
   evidenceIds: string[];
 }
 
@@ -18,6 +22,13 @@ export interface StaticSynthesisReport {
   executiveSummary: string;
   findings: SynthesisFinding[];
   suggestedActionPlan: string[];
+  quickWins?: string[];
+  abVariantHypotheses?: Array<{
+    hypothesis: string;
+    changeVector: string;
+    expectedMetricImpact: string;
+    testPriority: number;
+  }>;
 }
 
 export const SYSTEM_PROMPT_STATIC_SYNTHESIS = `You are an elite Performance Creative Intelligence Strategist for paid digital advertising.

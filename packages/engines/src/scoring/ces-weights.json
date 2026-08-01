@@ -1,0 +1,87 @@
+{
+  "$schema": "sakhaa-signal-ces-weights-v2",
+  "version": "2.0.0",
+  "axes": [
+    "attention", "hierarchy", "message", "brand",
+    "offerTrust", "cta", "nativeFit", "emotion", "compliance"
+  ],
+  "weights": {
+    "PPC_LEAD": {
+      "default":        { "attention": 0.18, "hierarchy": 0.15, "message": 0.17, "brand": 0.05, "offerTrust": 0.20, "cta": 0.15, "nativeFit": 0.00, "emotion": 0.05, "compliance": 0.05 },
+      "real_estate":    { "attention": 0.15, "hierarchy": 0.15, "message": 0.15, "brand": 0.05, "offerTrust": 0.25, "cta": 0.10, "nativeFit": 0.00, "emotion": 0.05, "compliance": 0.10 },
+      "healthcare":     { "attention": 0.12, "hierarchy": 0.13, "message": 0.15, "brand": 0.05, "offerTrust": 0.15, "cta": 0.10, "nativeFit": 0.00, "emotion": 0.10, "compliance": 0.20 },
+      "education":      { "attention": 0.15, "hierarchy": 0.15, "message": 0.17, "brand": 0.05, "offerTrust": 0.18, "cta": 0.15, "nativeFit": 0.00, "emotion": 0.05, "compliance": 0.10 },
+      "b2b_industrial": { "attention": 0.13, "hierarchy": 0.15, "message": 0.22, "brand": 0.05, "offerTrust": 0.22, "cta": 0.15, "nativeFit": 0.00, "emotion": 0.03, "compliance": 0.05 },
+      "insurance":      { "attention": 0.12, "hierarchy": 0.13, "message": 0.15, "brand": 0.05, "offerTrust": 0.18, "cta": 0.10, "nativeFit": 0.00, "emotion": 0.07, "compliance": 0.20 }
+    },
+    "PPC_CONVERSION": {
+      "default":        { "attention": 0.13, "hierarchy": 0.15, "message": 0.10, "brand": 0.05, "offerTrust": 0.32, "cta": 0.15, "nativeFit": 0.00, "emotion": 0.05, "compliance": 0.05 },
+      "real_estate":    { "attention": 0.13, "hierarchy": 0.15, "message": 0.10, "brand": 0.05, "offerTrust": 0.30, "cta": 0.10, "nativeFit": 0.00, "emotion": 0.05, "compliance": 0.12 },
+      "healthcare":     { "attention": 0.12, "hierarchy": 0.13, "message": 0.10, "brand": 0.05, "offerTrust": 0.25, "cta": 0.10, "nativeFit": 0.00, "emotion": 0.07, "compliance": 0.18 },
+      "d2c_jewellery":  { "attention": 0.15, "hierarchy": 0.10, "message": 0.10, "brand": 0.10, "offerTrust": 0.30, "cta": 0.15, "nativeFit": 0.00, "emotion": 0.05, "compliance": 0.05 }
+    },
+    "PPC_SALES": {
+      "default":        { "attention": 0.13, "hierarchy": 0.15, "message": 0.10, "brand": 0.05, "offerTrust": 0.32, "cta": 0.20, "nativeFit": 0.00, "emotion": 0.00, "compliance": 0.05 },
+      "d2c_jewellery":  { "attention": 0.13, "hierarchy": 0.10, "message": 0.10, "brand": 0.12, "offerTrust": 0.30, "cta": 0.20, "nativeFit": 0.00, "emotion": 0.00, "compliance": 0.05 },
+      "real_estate":    { "attention": 0.13, "hierarchy": 0.15, "message": 0.10, "brand": 0.05, "offerTrust": 0.30, "cta": 0.15, "nativeFit": 0.00, "emotion": 0.00, "compliance": 0.12 }
+    },
+    "SOCIAL_ENGAGEMENT": {
+      "default":        { "attention": 0.25, "hierarchy": 0.10, "message": 0.15, "brand": 0.15, "offerTrust": 0.00, "cta": 0.00, "nativeFit": 0.25, "emotion": 0.10, "compliance": 0.00 },
+      "d2c_jewellery":  { "attention": 0.20, "hierarchy": 0.08, "message": 0.10, "brand": 0.22, "offerTrust": 0.00, "cta": 0.00, "nativeFit": 0.25, "emotion": 0.15, "compliance": 0.00 },
+      "healthcare":     { "attention": 0.22, "hierarchy": 0.10, "message": 0.15, "brand": 0.10, "offerTrust": 0.00, "cta": 0.00, "nativeFit": 0.20, "emotion": 0.10, "compliance": 0.13 },
+      "real_estate":    { "attention": 0.23, "hierarchy": 0.10, "message": 0.15, "brand": 0.15, "offerTrust": 0.00, "cta": 0.00, "nativeFit": 0.20, "emotion": 0.10, "compliance": 0.07 }
+    },
+    "SOCIAL_AWARENESS": {
+      "default":        { "attention": 0.25, "hierarchy": 0.10, "message": 0.10, "brand": 0.28, "offerTrust": 0.00, "cta": 0.00, "nativeFit": 0.12, "emotion": 0.15, "compliance": 0.00 },
+      "d2c_jewellery":  { "attention": 0.20, "hierarchy": 0.10, "message": 0.05, "brand": 0.33, "offerTrust": 0.00, "cta": 0.00, "nativeFit": 0.17, "emotion": 0.15, "compliance": 0.00 },
+      "healthcare":     { "attention": 0.22, "hierarchy": 0.10, "message": 0.10, "brand": 0.23, "offerTrust": 0.00, "cta": 0.00, "nativeFit": 0.12, "emotion": 0.10, "compliance": 0.13 }
+    },
+    "SOCIAL_COMMUNITY": {
+      "default":        { "attention": 0.20, "hierarchy": 0.10, "message": 0.15, "brand": 0.15, "offerTrust": 0.00, "cta": 0.00, "nativeFit": 0.25, "emotion": 0.15, "compliance": 0.00 }
+    }
+  },
+  "hardCaps": {
+    "description": "Applied AFTER weighted sum. Clamp CES to the specified ceiling when rule matches.",
+    "rules": [
+      { "id": "cap:low_ocr_confidence", "if": "ocrConfidence < 0.5", "ceiling": 60 },
+      { "id": "cap:policy_risk_high", "if": "platformPolicyRiskScore >= 70", "ceiling": 50 },
+      { "id": "cap:policy_risk_moderate", "if": "platformPolicyRiskScore >= 50", "ceiling": 65 },
+      { "id": "cap:visual_democracy", "if": "visualDemocracyFlag === true", "ceiling": 62 },
+      { "id": "cap:unreadable_at_thumb", "if": "readabilityAtThumbnail < 40", "ceiling": 58 },
+      { "id": "cap:no_cta_on_sales", "if": "ctaPresent === false && objective === 'PPC_SALES'", "ceiling": 45 },
+      { "id": "cap:no_cta_on_conversion", "if": "ctaPresent === false && objective === 'PPC_CONVERSION'", "ceiling": 50 },
+      { "id": "cap:multiple_ctas_ppc", "if": "singularCTAFlag === false && objective.startsWith('PPC')", "ceiling": 65 },
+      { "id": "cap:no_offer_on_conversion", "if": "offerPresent === false && objective === 'PPC_CONVERSION'", "ceiling": 60 },
+      { "id": "cap:missing_mandatory_disclosure", "if": "mandatoryDisclaimerPresent === false && ['real_estate','healthcare','insurance'].includes(vertical)", "ceiling": 55 }
+    ]
+  },
+  "boostRules": {
+    "description": "Applied AFTER weighted sum, BEFORE hard caps.",
+    "rules": [
+      { "id": "boost:exceptional_hook", "if": "hookStrength >= 85", "delta": 3 },
+      { "id": "boost:exceptional_offer", "if": "priceAnchorPresent === true && savingsMagnitudeSalience >= 70", "delta": 3 },
+      { "id": "boost:exceptional_camouflage", "if": "feedCamouflageScore >= 80 && objective.startsWith('SOCIAL')", "delta": 3 },
+      { "id": "boost:exceptional_brand", "if": "brandRecognizabilityWithoutLogo >= 80", "delta": 2 }
+    ]
+  },
+  "verticalAliases": {
+    "mantri": "real_estate",
+    "mantri_webcity": "real_estate",
+    "surya_developers": "real_estate",
+    "surya_valencia": "real_estate",
+    "narayana_clinics": "healthcare",
+    "sparsh_global_care": "healthcare",
+    "motherhood": "healthcare",
+    "edme_insurance": "insurance",
+    "abibl": "insurance",
+    "crash_club": "d2c_jewellery",
+    "ckc_group": "d2c_jewellery",
+    "aukera": "d2c_jewellery",
+    "igus_india": "b2b_industrial",
+    "little_gym": "education",
+    "frankfinn": "education",
+    "dsu": "education",
+    "keenheads": "b2b_industrial",
+    "jain_legal_chambers": "b2b_industrial"
+  }
+}

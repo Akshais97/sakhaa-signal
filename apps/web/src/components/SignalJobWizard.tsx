@@ -301,6 +301,8 @@ export default function SignalJobWizard({ isOpen, onClose, onJobCreated }: Signa
                 onChange={(e) => setTargetPlatform(e.target.value)}
                 className="w-full px-3 py-2 bg-[#121110] border border-graphite-subtle rounded-md text-sm text-graphite-primary focus:outline-none focus:border-iris-primary transition-colors"
               >
+                <option value="STATIC_META">Static Meta Ads (FB/IG)</option>
+                <option value="STATIC_GOOGLE">Static Google Ads (Display/PMax)</option>
                 <option value="INSTAGRAM_REELS">Instagram Reels</option>
                 <option value="META">Meta Feed</option>
                 <option value="YOUTUBE">YouTube Shorts</option>

@@ -17,7 +17,19 @@ export interface ImageInspectionResult {
 }
 
 export async function inspectImage(imageBuffer: Buffer): Promise<ImageInspectionResult> {
-  const metadata = await sharp(imageBuffer).metadata();
+  if (!imageBuffer || imageBuffer.byteLength === 0) {
+    throw new Error("Invalid or empty image buffer provided for creative analysis inspection.");
+  }
+
+  let metadata;
+  try {
+    metadata = await sharp(imageBuffer, { failOn: "none" }).metadata();
+  } catch (err: any) {
+    throw new Error(
+      `Failed to parse image metadata: The uploaded image file appears to be corrupted or truncated. (${err.message})`
+    );
+  }
+
   const width = metadata.width || 1080;
   const height = metadata.height || 1920;
   const aspectRatio = width / height;
@@ -28,25 +40,35 @@ export async function inspectImage(imageBuffer: Buffer): Promise<ImageInspection
   else if (Math.abs(aspectRatio - 0.8) < 0.05) aspectRatioLabel = "4:5 (Portrait Feed)";
   else if (Math.abs(aspectRatio - 1.777) < 0.05) aspectRatioLabel = "16:9 (Landscape)";
 
-  // Extract raw grayscale pixels for brightness, contrast & blur math
-  const { data: rawBuffer, info } = await sharp(imageBuffer)
-    .grayscale()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
+  // Extract raw grayscale pixels for brightness, contrast & blur math (with failOn: "none" for truncated JPEG tolerance)
+  let rawBuffer: Buffer;
+  let info: { width: number; height: number };
+  try {
+    const res = await sharp(imageBuffer, { failOn: "none" })
+      .grayscale()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    rawBuffer = res.data;
+    info = res.info;
+  } catch (err: any) {
+    throw new Error(
+      `Failed to process image pixels: The uploaded image file is truncated or invalid. (${err.message})`
+    );
+  }
 
   const pixelCount = info.width * info.height;
   let sum = 0;
   for (let i = 0; i < rawBuffer.length; i++) {
     sum += rawBuffer[i];
   }
-  const brightness = sum / pixelCount;
+  const brightness = sum / Math.max(1, pixelCount);
 
   let varianceSum = 0;
   for (let i = 0; i < rawBuffer.length; i++) {
     const diff = rawBuffer[i] - brightness;
     varianceSum += diff * diff;
   }
-  const contrast = Math.sqrt(varianceSum / pixelCount);
+  const contrast = Math.sqrt(varianceSum / Math.max(1, pixelCount));
 
   // Approximate Laplacian variance for blur score
   let laplacianSum = 0;
@@ -63,7 +85,7 @@ export async function inspectImage(imageBuffer: Buffer): Promise<ImageInspection
       laplacianSum += Math.abs(val);
     }
   }
-  const blurScore = laplacianSum / (pixelCount / 4);
+  const blurScore = laplacianSum / (pixelCount / 4 || 1);
   const isBlurry = blurScore < 12.0;
 
   return {

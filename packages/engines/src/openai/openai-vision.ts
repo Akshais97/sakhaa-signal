@@ -4,6 +4,8 @@ import { readFileSync, existsSync } from "node:fs";
 import { ImageInspectionResult } from "../preprocessing/image-inspector.js";
 import { NormalizedObservation } from "../cv/google-vision.js";
 import { SynthesisFinding } from "./static-synthesis.js";
+import { SIGNAL_SYSTEM_PROMPT } from "./prompts/signal-system-prompt.js";
+import { SIGNAL_SYNTHESIS_PROMPT } from "./prompts/signal-synthesis-prompt.js";
 
 function getFreshOpenAIApiKey(): string | undefined {
   try {
@@ -38,54 +40,17 @@ export interface UnifiedOpenAIVisionResult {
   executiveSummary: string;
   findings: SynthesisFinding[];
   suggestedActionPlan: string[];
+  quickWins?: string[];
+  abVariantHypotheses?: Array<{
+    hypothesis: string;
+    changeVector: string;
+    expectedMetricImpact: string;
+    testPriority: number;
+  }>;
+  confidenceInterval?: [number, number];
+  rawMetrics?: Record<string, any>;
   modelUsed: string;
 }
-
-export const UNIFIED_STATIC_VISION_PROMPT = `You are an elite Performance Creative Intelligence Strategist and Computer Vision Analyst for paid digital advertising.
-Analyze the provided ad creative image along with its technical metadata.
-Perform exact OCR text extraction, visual layout/logo/face detection, and diagnostic creative evaluation.
-
-Produce a single, strictly valid JSON response adhering to this schema:
-{
-  "extractedText": "Exact, complete transcript of all readable text in the image (or empty string if none)",
-  "textCoveragePercent": 15, // integer 0 to 100 representing percentage of creative canvas occupied by text
-  "hasLogo": true, // boolean
-  "logoLabel": "Name of detected brand logo or logotype if visible",
-  "hasFace": false, // boolean
-  "dominantColors": ["#HEX1", "#HEX2", "#HEX3"], // top 3 dominant hex colors
-  "observations": [
-    {
-      "id": "obs_text_1",
-      "observationType": "OCR_TEXT", // OCR_TEXT | LOGO_DETECTION | FACE_DETECTION | OBJECT_DETECTION
-      "label": "Text span or element description",
-      "confidence": 0.95,
-      "boundingBox": { "x": 0.1, "y": 0.2, "width": 0.8, "height": 0.1 } // normalized 0.0 to 1.0 coordinates
-    }
-  ],
-  "executiveSummary": "Concise 2-sentence summary of overall performance potential, key visual hook strength, and primary bottleneck.",
-  "findings": [
-    {
-      "type": "STRENGTH", // STRENGTH | WEAKNESS | RECOMMENDATION
-      "category": "HOOK", // HOOK | COPY_CLARITY | CTA | VISUAL_CONSTRUCTION | BRANDING | COMPLIANCE
-      "title": "Short descriptive title",
-      "description": "Evidence-backed explanation citing specific text or visual details in THIS image",
-      "recommendation": "Specific actionable edit instruction for design team (required if WEAKNESS or RECOMMENDATION)",
-      "impactPriority": "HIGH", // HIGH | MEDIUM | LOW
-      "evidenceIds": ["obs_text_1"]
-    }
-  ],
-  "suggestedActionPlan": [
-    "1-line actionable modification step 1",
-    "1-line actionable modification step 2",
-    "1-line actionable modification step 3"
-  ]
-}
-
-Rules:
-1. "extractedText" MUST contain the ACTUAL text visible in this specific creative image. Do NOT invent or reuse sample copy.
-2. Base all findings and recommendations strictly on the empirical image content provided.
-3. ALWAYS include at least 2 specific RECOMMENDATION findings with clear edit instructions.
-4. Output ONLY valid JSON. No markdown backticks or commentary outside the JSON.`;
 
 export async function analyzeStaticCreativeWithOpenAI(
   imageBuffer: Buffer,
@@ -102,7 +67,7 @@ export async function analyzeStaticCreativeWithOpenAI(
   }
 
   const selectedModel = (modelName && modelName.trim()) ? modelName.trim() : (process.env.OPENAI_MODEL || "gpt-4o");
-  console.log(`[OPENAI_VISION] Initiating unified creative analysis with model: ${selectedModel}`);
+  console.log(`[OPENAI_VISION] Initiating Sakhaa Signal creative extraction & diagnosis with model: ${selectedModel}`);
 
   const openai = new OpenAI({ apiKey });
   const mimeType = inspection.format === "png" ? "image/png" : "image/jpeg";
@@ -111,8 +76,8 @@ export async function analyzeStaticCreativeWithOpenAI(
   const promptPayload = {
     campaignContext: {
       brandName: campaignContext?.brandName || "Unspecified Brand",
-      targetPlatform: campaignContext?.targetPlatform || "INSTAGRAM_REELS",
-      placement: campaignContext?.placement || "REEL",
+      targetPlatform: campaignContext?.targetPlatform || "STATIC_META",
+      placement: campaignContext?.placement || "FEED",
       creativeGoal: campaignContext?.creativeGoal || "Direct Response Conversion",
     },
     inspection: {
@@ -128,13 +93,15 @@ export async function analyzeStaticCreativeWithOpenAI(
   try {
     const isReasoningModel = /sol|o1|o3/i.test(selectedModel);
 
-    const requestOptions: any = {
+    // Call 1: Extraction & Diagnostic Scoring (Temperature 0.15, seed 42)
+    const extractionOptions: any = {
       model: selectedModel,
       response_format: { type: "json_object" },
+      seed: 42,
       messages: [
         {
           role: "system",
-          content: UNIFIED_STATIC_VISION_PROMPT,
+          content: SIGNAL_SYSTEM_PROMPT,
         },
         {
           role: "user",
@@ -156,18 +123,50 @@ export async function analyzeStaticCreativeWithOpenAI(
     };
 
     if (!isReasoningModel) {
-      requestOptions.temperature = 0.2;
+      extractionOptions.temperature = 0.15;
     }
 
-    const response = await openai.chat.completions.create(requestOptions);
-
+    const response = await openai.chat.completions.create(extractionOptions);
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("Empty response received from OpenAI API.");
 
-    const parsed = JSON.parse(content);
+    const parsedExtraction = JSON.parse(content);
     const providerName = `OPENAI_${selectedModel.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
 
-    const rawObservations: any[] = parsed.observations || [];
+    // Call 2: Synthesis Call (Temperature 0.35, seed 42)
+    console.log(`[OPENAI_VISION] Running synthesis layer for executive summary, findings & quick wins...`);
+    const synthesisOptions: any = {
+      model: selectedModel,
+      response_format: { type: "json_object" },
+      seed: 42,
+      messages: [
+        {
+          role: "system",
+          content: SIGNAL_SYNTHESIS_PROMPT,
+        },
+        {
+          role: "user",
+          content: JSON.stringify(parsedExtraction),
+        },
+      ],
+    };
+
+    if (!isReasoningModel) {
+      synthesisOptions.temperature = 0.35;
+    }
+
+    let parsedSynthesis = parsedExtraction;
+    try {
+      const synthesisResp = await openai.chat.completions.create(synthesisOptions);
+      const synthContent = synthesisResp.choices[0]?.message?.content;
+      if (synthContent) {
+        parsedSynthesis = JSON.parse(synthContent);
+      }
+    } catch (synthErr) {
+      console.warn(`[OPENAI_VISION] Synthesis call failed, using extraction output fallback:`, synthErr);
+    }
+
+    const rawObservations: any[] = parsedExtraction.observations || [];
     const observations: NormalizedObservation[] = rawObservations.map((obs, idx) => ({
       id: obs.id || `obs_${idx + 1}`,
       observationType: obs.observationType || "OCR_TEXT",
@@ -177,17 +176,44 @@ export async function analyzeStaticCreativeWithOpenAI(
       provider: providerName,
     }));
 
+    const rawFindings: any[] = parsedSynthesis.findings || parsedExtraction.findings || [];
+    const findings: SynthesisFinding[] = rawFindings.map((f) => ({
+      type: f.type || "RECOMMENDATION",
+      category: f.category || "GENERAL",
+      title: f.title || "Observation",
+      description: f.description || "",
+      recommendation: f.recommendation || "",
+      impactPriority: f.impactPriority || "MEDIUM",
+      effortEstimate: f.effortEstimate || "LOW",
+      expectedLift: f.expectedLift || "",
+      verticalBenchmarkDelta: typeof f.verticalBenchmarkDelta === "number" ? f.verticalBenchmarkDelta : undefined,
+      evidenceRefs: Array.isArray(f.evidenceRefs) ? f.evidenceRefs : [],
+      evidenceIds: Array.isArray(f.evidenceIds) ? f.evidenceIds : [],
+    }));
+
     return {
-      extractedText: parsed.extractedText || "",
-      textCoveragePercent: typeof parsed.textCoveragePercent === "number" ? parsed.textCoveragePercent : 0,
-      hasLogo: Boolean(parsed.hasLogo),
-      logoLabel: parsed.logoLabel || undefined,
-      hasFace: Boolean(parsed.hasFace),
-      dominantColors: Array.isArray(parsed.dominantColors) ? parsed.dominantColors : ["#1E293B", "#6366F1"],
+      extractedText: parsedExtraction.extractedText || "",
+      textCoveragePercent: typeof parsedExtraction.textCoveragePercent === "number" ? parsedExtraction.textCoveragePercent : 0,
+      hasLogo: Boolean(parsedExtraction.hasLogo),
+      logoLabel: parsedExtraction.logoLabel || undefined,
+      hasFace: Boolean(parsedExtraction.hasFace),
+      dominantColors: Array.isArray(parsedExtraction.dominantColors) ? parsedExtraction.dominantColors : ["#1E293B", "#6366F1"],
       observations,
-      executiveSummary: parsed.executiveSummary || "Creative analysis completed successfully.",
-      findings: Array.isArray(parsed.findings) ? parsed.findings : [],
-      suggestedActionPlan: Array.isArray(parsed.suggestedActionPlan) ? parsed.suggestedActionPlan : [],
+      executiveSummary: parsedSynthesis.executiveSummary || parsedExtraction.executiveSummary || "Creative analysis completed.",
+      findings,
+      suggestedActionPlan: Array.isArray(parsedSynthesis.suggestedActionPlan) ? parsedSynthesis.suggestedActionPlan : [],
+      quickWins: Array.isArray(parsedSynthesis.quickWins) ? parsedSynthesis.quickWins : [],
+      abVariantHypotheses: Array.isArray(parsedSynthesis.abVariantHypotheses) ? parsedSynthesis.abVariantHypotheses : [],
+      confidenceInterval: parsedExtraction.scoring?.confidenceInterval || [60, 75],
+      rawMetrics: {
+        attention: parsedExtraction.attention,
+        hierarchy: parsedExtraction.hierarchy,
+        message: parsedExtraction.message,
+        brand: parsedExtraction.brand,
+        social: parsedExtraction.social,
+        ppc: parsedExtraction.ppc,
+        compliance: parsedExtraction.compliance,
+      },
       modelUsed: selectedModel,
     };
   } catch (err: any) {

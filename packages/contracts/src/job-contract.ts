@@ -39,7 +39,7 @@ export const CreateAnalysisJobRequestSchema = z.object({
   inputObjectKey: z.string().min(1),
   mediaType: z.enum(["image", "video"]),
   brandName: z.string().max(160).optional(),
-  targetPlatform: z.enum(["META", "INSTAGRAM_REELS", "YOUTUBE", "TIKTOK", "LINKEDIN", "GENERIC"]).optional(),
+  targetPlatform: z.enum(["STATIC_META", "STATIC_GOOGLE", "META", "INSTAGRAM_REELS", "YOUTUBE", "TIKTOK", "LINKEDIN", "GENERIC"]).optional(),
   placement: z.enum(["FEED", "STORY", "REEL", "SHORTS", "PRE_ROLL", "GENERIC"]).optional(),
   creativeGoal: z.string().max(240).optional(),
   selectedModel: z.string().max(80).optional(),
