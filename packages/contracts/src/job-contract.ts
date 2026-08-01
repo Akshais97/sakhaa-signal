@@ -42,6 +42,7 @@ export const CreateAnalysisJobRequestSchema = z.object({
   targetPlatform: z.enum(["META", "INSTAGRAM_REELS", "YOUTUBE", "TIKTOK", "LINKEDIN", "GENERIC"]).optional(),
   placement: z.enum(["FEED", "STORY", "REEL", "SHORTS", "PRE_ROLL", "GENERIC"]).optional(),
   creativeGoal: z.string().max(240).optional(),
+  selectedModel: z.string().max(80).optional(),
 });
 
 export type CreateAnalysisJobRequest = z.infer<typeof CreateAnalysisJobRequestSchema>;
@@ -60,6 +61,7 @@ export const AnalysisJobSummarySchema = z.object({
   targetPlatform: z.string().nullable(),
   placement: z.string().nullable(),
   creativeGoal: z.string().nullable(),
+  selectedModel: z.string().nullable(),
   errorMessage: z.string().nullable(),
   completedAt: z.string().nullable(),
   createdAt: z.string(),

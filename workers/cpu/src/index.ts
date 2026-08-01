@@ -11,14 +11,11 @@ import { PrismaClient } from "@sakhaa-forge/db";
 import { StorageAdapter } from "./storage/b2-adapter.js";
 import {
   inspectImage,
-  analyzeStaticImageWithVision,
+  analyzeStaticCreativeWithOpenAI,
   evaluateStaticRules,
   computeStaticCategoryScores,
-  generateStaticSynthesis,
 } from "@sakhaa-signal/engines";
 import { readFile } from "node:fs/promises";
-import path from "node:path";
-import os from "node:os";
 
 const prisma = new PrismaClient();
 const storage = new StorageAdapter();
@@ -66,8 +63,8 @@ async function claimEligibleJob() {
   });
 }
 
-async function processJob(job: any) {
-  console.log(`[SIGNAL_CPU_WORKER] Processing Job: ${job.id} (${job.mode} - ${job.mediaType})`);
+export async function processJob(job: any) {
+  console.log(`[SIGNAL_CPU_WORKER] Processing Job: ${job.id} (${job.mode} - ${job.mediaType}) [Model: ${job.selectedModel || "default"}]`);
   const tempDir = path.resolve(os.tmpdir(), "sakhaa-signal", job.id);
 
   try {
@@ -84,9 +81,19 @@ async function processJob(job: any) {
     const inspection = await inspectImage(imageBuffer);
     await updateStage(job.id, "PREPROCESSING", "SUCCEEDED", 40);
 
-    // 3. Computer Vision Stage
+    // 3. Unified OpenAI Computer Vision & OCR Stage
     await updateStage(job.id, "COMPUTER_VISION", "RUNNING", 50);
-    const vision = await analyzeStaticImageWithVision(imageBuffer, inspection.width, inspection.height);
+    const vision = await analyzeStaticCreativeWithOpenAI(
+      imageBuffer,
+      inspection,
+      {
+        brandName: job.brandName,
+        targetPlatform: job.targetPlatform,
+        placement: job.placement,
+        creativeGoal: job.creativeGoal,
+      },
+      job.selectedModel
+    );
 
     // Store Evidence Observations in DB
     for (const obs of vision.observations) {
@@ -143,22 +150,9 @@ async function processJob(job: any) {
     }
     await updateStage(job.id, "DETERMINISTIC_SCORING", "SUCCEEDED", 90);
 
-    // 6. Multimodal GPT Synthesis Stage
+    // 6. Strategic Synthesis Stage (Persist Findings from OpenAI Vision)
     await updateStage(job.id, "MULTIMODAL_GPT_SYNTHESIS", "RUNNING", 92);
-    const synthesis = await generateStaticSynthesis(
-      inspection,
-      vision,
-      rules,
-      scoring,
-      {
-        brandName: job.brandName,
-        targetPlatform: job.targetPlatform,
-        creativeGoal: job.creativeGoal,
-      },
-      imageBuffer
-    );
-
-    for (const f of synthesis.findings) {
+    for (const f of vision.findings) {
       await prisma.finding.create({
         data: {
           analysisJobId: job.id,
@@ -182,19 +176,21 @@ async function processJob(job: any) {
       title: job.title,
       mode: job.mode,
       status: "SUCCEEDED",
+      selectedModel: vision.modelUsed,
       overallScore: scoring.overallScore,
       inspection,
       visionSummary: {
         extractedText: vision.extractedText,
         textCoveragePercent: vision.textCoveragePercent,
         hasLogo: vision.hasLogo,
+        logoLabel: vision.logoLabel,
         hasFace: vision.hasFace,
         dominantColors: vision.dominantColors,
       },
       categoryScores: scoring.categoryScores,
       rules,
-      executiveSummary: synthesis.executiveSummary,
-      suggestedActionPlan: synthesis.suggestedActionPlan,
+      executiveSummary: vision.executiveSummary,
+      suggestedActionPlan: vision.suggestedActionPlan,
       completedAt: new Date().toISOString(),
     };
 

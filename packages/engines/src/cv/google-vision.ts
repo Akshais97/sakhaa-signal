@@ -11,7 +11,7 @@ export interface NormalizedObservation {
     width: number; // 0.0 to 1.0
     height: number; // 0.0 to 1.0
   };
-  provider: "GOOGLE_VISION";
+  provider: string;
   rawMetadata?: any;
 }
 

@@ -8,6 +8,40 @@ interface SignalJobWizardProps {
   onJobCreated: (jobId: string) => void;
 }
 
+// Minimal inline icon set (monochrome, currentColor). No external dependency.
+type IconProps = React.SVGProps<SVGSVGElement>;
+const IconClose = (p: IconProps) => (
+  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" {...p}><path d="m5 5 10 10M15 5 5 15" /></svg>
+);
+const IconAlert = (p: IconProps) => (
+  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M10 3 1.5 17.5h17L10 3Z" /><path d="M10 8v4M10 15h.01" /></svg>
+);
+const IconUpload = (p: IconProps) => (
+  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M10 13V3m0 0L6.5 6.5M10 3l3.5 3.5" /><path d="M3.5 13v3a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-3" /></svg>
+);
+const IconImage = (p: IconProps) => (
+  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...p}><rect x="2.5" y="3.5" width="15" height="13" rx="2" /><circle cx="7" cy="8" r="1.5" /><path d="m3 14 4-4 3 2.5 3-3 4 4.5" /></svg>
+);
+const IconVideo = (p: IconProps) => (
+  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...p}><rect x="2.5" y="4.5" width="11" height="11" rx="2" /><path d="m13.5 8 4-2.2v8.4l-4-2.2" /></svg>
+);
+const IconLayers = (p: IconProps) => (
+  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="m10 2 8 4.5-8 4.5-8-4.5L10 2Z" /><path d="m2 10 8 4.5 8-4.5" /><path d="m2 14 8 4.5 8-4.5" /></svg>
+);
+
+const Spinner = ({ className = "" }: { className?: string }) => (
+  <svg className={`animate-spin ${className}`} fill="none" viewBox="0 0 24 24" aria-hidden="true">
+    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+  </svg>
+);
+
+const MODE_OPTIONS = [
+  { key: "STATIC_STANDARD", label: "Static ad", desc: "Single image OCR, visual rules and GPT", Icon: IconImage },
+  { key: "VIDEO_STANDARD", label: "Video standard", desc: "Video OCR, Groq STT, YAMNet and timeline", Icon: IconVideo },
+  { key: "FULL_WITH_TRIBEV2", label: "Full + TribeV2", desc: "GPU transformer, 17-cluster and neuro scores", Icon: IconLayers },
+] as const;
+
 export default function SignalJobWizard({ isOpen, onClose, onJobCreated }: SignalJobWizardProps) {
   const [mode, setMode] = useState<"STATIC_STANDARD" | "VIDEO_STANDARD" | "FULL_WITH_TRIBEV2">("STATIC_STANDARD");
   const [file, setFile] = useState<File | null>(null);
@@ -16,6 +50,7 @@ export default function SignalJobWizard({ isOpen, onClose, onJobCreated }: Signa
   const [targetPlatform, setTargetPlatform] = useState("INSTAGRAM_REELS");
   const [placement, setPlacement] = useState("REEL");
   const [creativeGoal, setCreativeGoal] = useState("");
+  const [selectedModel, setSelectedModel] = useState("gpt-4o");
 
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -103,6 +138,7 @@ export default function SignalJobWizard({ isOpen, onClose, onJobCreated }: Signa
           targetPlatform,
           placement,
           creativeGoal,
+          selectedModel: selectedModel.trim() || "gpt-4o",
         }),
       });
 
@@ -125,106 +161,122 @@ export default function SignalJobWizard({ isOpen, onClose, onJobCreated }: Signa
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B0A09]/80 p-4">
+      <div className="bg-graphite-sunken border border-graphite-subtle rounded-md w-full max-w-2xl overflow-hidden shadow-[0_32px_64px_-16px_rgba(0,0,0,0.7)]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-graphite-subtle bg-[#121110]">
           <div>
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <span className="text-indigo-400">✨</span> New Creative Analysis
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">Upload static image or video creative for pre-flight diagnosis</p>
+            <h2 className="text-lg font-semibold text-graphite-primary tracking-tight">New creative analysis</h2>
+            <p className="text-sm text-graphite-tertiary mt-0.5">Upload static image or video creative for pre-flight diagnosis</p>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-slate-800"
+            aria-label="Close"
+            className="text-graphite-tertiary hover:text-graphite-primary transition-colors p-1 rounded-md hover:bg-[#1A1815]"
           >
-            ✕
+            <IconClose className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[80vh] overflow-y-auto custom-scrollbar">
           {error && (
-            <div className="p-3 bg-red-950/60 border border-red-800/80 rounded-xl text-red-200 text-sm">
-              🚨 {error}
+            <div className="p-3 bg-[rgba(242,120,108,0.08)] border border-[#F2786C]/30 rounded-md text-[#F2786C] text-sm flex items-start gap-2" role="alert">
+              <IconAlert className="w-5 h-5 shrink-0 mt-0.5" />
+              <span className="leading-relaxed">{error}</span>
             </div>
           )}
 
           {/* Mode Selector */}
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-              Select Analysis Mode
+            <label className="block text-xs font-semibold text-graphite-tertiary mb-2 uppercase tracking-wider">
+              Analysis mode
             </label>
             <div className="grid grid-cols-3 gap-3">
-              <button
-                type="button"
-                onClick={() => setMode("STATIC_STANDARD")}
-                className={`p-3.5 rounded-xl border text-left transition-all ${
-                  mode === "STATIC_STANDARD"
-                    ? "border-indigo-500 bg-indigo-950/40 text-white shadow-lg shadow-indigo-500/10"
-                    : "border-slate-800 bg-slate-950/40 text-slate-400 hover:border-slate-700 hover:text-slate-200"
-                }`}
-              >
-                <div className="text-base font-semibold">🖼️ Static Ad</div>
-                <div className="text-[11px] text-slate-400 mt-1">Single image OCR, visual rules & GPT</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setMode("VIDEO_STANDARD")}
-                className={`p-3.5 rounded-xl border text-left transition-all ${
-                  mode === "VIDEO_STANDARD"
-                    ? "border-indigo-500 bg-indigo-950/40 text-white shadow-lg shadow-indigo-500/10"
-                    : "border-slate-800 bg-slate-950/40 text-slate-400 hover:border-slate-700 hover:text-slate-200"
-                }`}
-              >
-                <div className="text-base font-semibold">🎥 Video Standard</div>
-                <div className="text-[11px] text-slate-400 mt-1">Video OCR, Groq STT, YAMNet & timeline</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setMode("FULL_WITH_TRIBEV2")}
-                className={`p-3.5 rounded-xl border text-left transition-all ${
-                  mode === "FULL_WITH_TRIBEV2"
-                    ? "border-purple-500 bg-purple-950/40 text-white shadow-lg shadow-purple-500/10"
-                    : "border-slate-800 bg-slate-950/40 text-slate-400 hover:border-slate-700 hover:text-slate-200"
-                }`}
-              >
-                <div className="text-base font-semibold">🚀 Full + TribeV2</div>
-                <div className="text-[11px] text-slate-400 mt-1">GPU Transformer, 17-Cluster & Neuro Scores</div>
-              </button>
+              {MODE_OPTIONS.map(({ key, label, desc, Icon }) => {
+                const selected = mode === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setMode(key)}
+                    aria-pressed={selected}
+                    className={`p-3.5 rounded-md border text-left transition-colors flex flex-col gap-2 ${
+                      selected
+                        ? "border-iris-primary bg-iris-primary/10 text-graphite-primary"
+                        : "border-graphite-subtle bg-[#121110] text-graphite-tertiary hover:border-graphite-strong hover:text-graphite-secondary"
+                    }`}
+                  >
+                    <Icon className={`w-5 h-5 ${selected ? "text-iris-primary" : "text-graphite-tertiary"}`} />
+                    <div className="text-sm font-semibold">{label}</div>
+                    <div className="text-xs text-graphite-tertiary leading-relaxed">{desc}</div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           {/* File Upload Drop Area */}
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-              Creative Media File
+            <label className="block text-xs font-semibold text-graphite-tertiary mb-2 uppercase tracking-wider">
+              Creative media file
             </label>
-            <div className="relative border-2 border-dashed border-slate-700 rounded-xl p-6 text-center hover:border-indigo-500/80 transition-colors bg-slate-950/30 group">
+            <div className="relative border-2 border-dashed border-graphite-strong rounded-md p-6 text-center hover:border-iris-primary transition-colors bg-[#121110] group">
               <input
                 type="file"
                 accept={mode === "STATIC_STANDARD" ? "image/jpeg,image/png,image/webp" : "video/mp4,video/quicktime,video/webm,image/jpeg,image/png"}
                 onChange={handleFileSelect}
                 className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                aria-label="Upload creative media file"
               />
               <div className="space-y-2">
-                <div className="text-3xl text-slate-400 group-hover:scale-110 transition-transform duration-200">
-                  {file ? (file.type.startsWith("video/") ? "🎬" : "📸") : "☁️"}
+                <div className={`flex justify-center transition-colors ${file ? "text-iris-primary" : "text-graphite-tertiary group-hover:text-iris-primary"}`}>
+                  <IconUpload className="w-8 h-8" />
                 </div>
                 {file ? (
                   <div>
-                    <p className="text-sm font-semibold text-indigo-300">{file.name}</p>
-                    <p className="text-xs text-slate-500">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
+                    <p className="text-sm font-semibold text-iris-primary">{file.name}</p>
+                    <p className="text-xs text-graphite-tertiary font-mono">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
                   </div>
                 ) : (
                   <div>
-                    <p className="text-sm text-slate-300 font-medium">
-                      Drag & drop your creative file here, or <span className="text-indigo-400 underline">browse</span>
+                    <p className="text-sm text-graphite-secondary">
+                      Drag and drop your creative file here, or <span className="text-iris-primary underline">browse</span>
                     </p>
-                    <p className="text-xs text-slate-500 mt-1">Supports MP4, MOV, WebM, JPEG, PNG up to 500MB</p>
+                    <p className="text-xs text-graphite-tertiary mt-1">Supports MP4, MOV, WebM, JPEG, PNG up to 500MB</p>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+
+          {/* OpenAI Model Selection */}
+          <div>
+            <div className="flex justify-between items-center mb-1">
+              <label className="block text-sm text-graphite-tertiary">OpenAI Vision Model</label>
+              <span className="text-xs text-iris-primary font-mono">Dynamic Selection</span>
+            </div>
+            <div className="space-y-2">
+              <input
+                type="text"
+                placeholder="e.g. gpt-4o, gpt-5.6-sol, gpt-4.5-preview"
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                className="w-full px-3 py-2 bg-[#121110] border border-graphite-subtle rounded-md text-sm font-mono text-graphite-primary placeholder-[#615D55] focus:outline-none focus:border-iris-primary focus:ring-1 focus:ring-iris-primary transition-colors"
+              />
+              <div className="flex gap-2 flex-wrap">
+                {["gpt-4o", "gpt-5.6-sol", "gpt-4.5-preview", "gpt-4o-mini"].map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setSelectedModel(m)}
+                    className={`text-xs px-2.5 py-1 rounded border font-mono transition-colors ${
+                      selectedModel === m
+                        ? "bg-iris-primary/20 border-iris-primary text-iris-primary font-semibold"
+                        : "bg-[#121110] border-graphite-subtle text-graphite-tertiary hover:border-graphite-strong hover:text-graphite-secondary"
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -232,22 +284,22 @@ export default function SignalJobWizard({ isOpen, onClose, onJobCreated }: Signa
           {/* Campaign Context Fields */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Brand Name (Optional)</label>
+              <label className="block text-sm text-graphite-tertiary mb-1">Brand name (optional)</label>
               <input
                 type="text"
                 placeholder="e.g. Acme Health"
                 value={brandName}
                 onChange={(e) => setBrandName(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                className="w-full px-3 py-2 bg-[#121110] border border-graphite-subtle rounded-md text-sm text-graphite-primary placeholder-[#615D55] focus:outline-none focus:border-iris-primary focus:ring-1 focus:ring-iris-primary transition-colors"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Target Platform</label>
+              <label className="block text-sm text-graphite-tertiary mb-1">Target platform</label>
               <select
                 value={targetPlatform}
                 onChange={(e) => setTargetPlatform(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-indigo-500"
+                className="w-full px-3 py-2 bg-[#121110] border border-graphite-subtle rounded-md text-sm text-graphite-primary focus:outline-none focus:border-iris-primary transition-colors"
               >
                 <option value="INSTAGRAM_REELS">Instagram Reels</option>
                 <option value="META">Meta Feed</option>
@@ -260,26 +312,26 @@ export default function SignalJobWizard({ isOpen, onClose, onJobCreated }: Signa
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1">Creative Goal / Offer (Optional)</label>
+            <label className="block text-sm text-graphite-tertiary mb-1">Creative goal / offer (optional)</label>
             <input
               type="text"
-              placeholder="e.g. 50% Off Summer Sale CTA with free shipping"
+              placeholder="e.g. 50% off summer sale CTA with free shipping"
               value={creativeGoal}
               onChange={(e) => setCreativeGoal(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+              className="w-full px-3 py-2 bg-[#121110] border border-graphite-subtle rounded-md text-sm text-graphite-primary placeholder-[#615D55] focus:outline-none focus:border-iris-primary focus:ring-1 focus:ring-iris-primary transition-colors"
             />
           </div>
 
           {/* Progress Bar */}
           {uploading && (
             <div className="space-y-1.5">
-              <div className="flex justify-between text-xs text-indigo-300">
-                <span>Uploading media to secure storage...</span>
+              <div className="flex justify-between text-sm text-iris-primary font-mono">
+                <span>Uploading media to secure storage…</span>
                 <span>{uploadProgress}%</span>
               </div>
-              <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+              <div className="w-full bg-[#121110] rounded-full h-2 overflow-hidden border border-graphite-subtle">
                 <div
-                  className="bg-gradient-to-r from-indigo-500 to-purple-500 h-full transition-all duration-300"
+                  className="bg-iris-primary h-full transition-all duration-300 ease-out"
                   style={{ width: `${uploadProgress}%` }}
                 />
               </div>
@@ -292,16 +344,17 @@ export default function SignalJobWizard({ isOpen, onClose, onJobCreated }: Signa
               type="button"
               onClick={onClose}
               disabled={uploading}
-              className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors"
+              className="px-4 py-2 text-sm text-graphite-tertiary hover:text-graphite-primary transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={uploading || !file}
-              className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium text-sm rounded-xl transition-all shadow-lg shadow-indigo-600/25"
+              className="px-6 py-2.5 bg-iris-primary hover:brightness-110 disabled:opacity-50 text-white font-semibold text-sm rounded-md transition-all disabled:cursor-not-allowed flex items-center gap-2"
             >
-              {uploading ? "Uploading & Creating..." : "Start Analysis ✨"}
+              {uploading && <Spinner className="h-4 w-4" />}
+              {uploading ? "Uploading and creating…" : "Start analysis"}
             </button>
           </div>
         </form>

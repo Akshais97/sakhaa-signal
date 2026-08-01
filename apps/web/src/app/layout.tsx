@@ -1,26 +1,20 @@
 import type { Metadata } from "next";
-import { Inter, Outfit, JetBrains_Mono } from "next/font/google";
+import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const outfit = Outfit({
-  variable: "--font-display",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-});
-
-const inter = Inter({
-  variable: "--font-text",
-  subsets: ["latin"],
-});
-
+// JetBrains Mono is self-hosted via next/font (data/IDs/hashes/timestamps)
+// and owns the --font-mono variable. Clash Display (display) + Satoshi
+// (UI/body) are the brand typefaces, loaded from Fontshare (Indian Type
+// Foundry) — the India-grounded choice per PROJECT_BRAND_GUIDELINES.md §4.
+// --font-display and --font-text are declared in globals.css.
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-mono",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "TribeV2 Ad Scorer — Creative Studio Instrument",
-  description: "Neuromarketing Brain-Response Creative Intelligence",
+  title: "Sakhaa Signal, creative studio instrument",
+  description: "Creative analysis studio for short-form video.",
 };
 
 export default function RootLayout({
@@ -31,11 +25,17 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${outfit.variable} ${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${jetbrainsMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
+      <head>
+        <link rel="preconnect" href="https://api.fontshare.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://api.fontshare.com/v2/css?f[]=clash-display@500,600,700&f[]=satoshi@400,500,700&display=swap"
+        />
+      </head>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>{children}</body>
     </html>
   );
 }
-

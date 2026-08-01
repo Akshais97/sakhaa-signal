@@ -55,6 +55,20 @@
     --status-unknown-fg: #5B5168;
     --status-unknown-bg: #EFEBF3;
 
+    /* Radii */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 10px;
+    --radius-media: 10px;
+
+    /* Type scale (fixed rem). Floor: 14px actionable, 12px for reference data only. */
+    --text-2xs: 0.75rem;   /* 12px - IDs, hashes, timestamps (mono data only) */
+    --text-xs: 0.8125rem;  /* 13px - tight metadata */
+    --text-sm: 0.875rem;   /* 14px - labels, meta (actionable floor) */
+    --text-base: 1rem;     /* 16px - body */
+    --text-lg: 1.125rem;   /* 18px - section headings */
+    --text-xl: 1.25rem;    /* 20px - page headings */
+
     /* Semantic mapping - Light Mode (Default) */
     --background: var(--p-ink-25);
     --foreground: var(--p-ink-800);
@@ -75,9 +89,11 @@
     --accent-creative: var(--p-ember-500);
     --accent-creative-hover: var(--p-ember-600);
 
+    /* Fonts: Clash Display (display) + Satoshi (UI/body) loaded via Fontshare
+       in layout.tsx. JetBrains Mono is self-hosted via next/font and owns the
+       --font-mono variable, so it is not redeclared here. */
     --font-display: "Clash Display", "Satoshi", ui-sans-serif, system-ui, sans-serif;
     --font-text: "Satoshi", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
-    --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   }
 
   /* Dark mode overrides (Recommended default for authenticated creative space) */
@@ -131,7 +147,7 @@
   /* Utility font bindings */
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display);
-    font-weight: 500;
+    font-weight: 600;
     letter-spacing: -0.01em;
   }
 
@@ -168,7 +184,13 @@
   background-color: var(--accent-creative-hover);
 }
 
-/* Diagonal hatch styling for the unknown timeout state */
+/* Calm studio canvas. The graphite surround is the point; media reads truthfully against it. */
+.dashboard-canvas {
+  background:
+    linear-gradient(180deg, var(--p-ink-850) 0%, var(--p-ink-900) 60%, var(--p-ink-950) 100%);
+}
+
+/* Diagonal hatch styling for the unknown timeout state. Preserves `unknown` as a real state. */
 .unknown-diagonal-hatch {
   background: repeating-linear-gradient(
     45deg,
@@ -180,75 +202,13 @@
   border-style: dashed;
 }
 
-/* --- Premium Animations & Background Grids --- */
-
-@keyframes grid-pan {
-  0% { background-position: 0 0; }
-  100% { background-position: 48px 48px; }
-}
-
-@keyframes scanline {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100%); }
-}
-
-@keyframes pulse-soft {
-  0%, 100% { opacity: 0.25; }
-  50% { opacity: 0.45; }
-}
-
-@keyframes blink-cursor {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-
-.dashboard-canvas {
-  position: relative;
-  background:
-    radial-gradient(circle at 10% 20%, rgba(101, 87, 245, 0.12), transparent 45%),
-    radial-gradient(circle at 90% 80%, rgba(255, 107, 61, 0.08), transparent 45%),
-    linear-gradient(180deg, var(--p-ink-850) 0%, var(--p-ink-900) 50%, var(--p-ink-950) 100%);
-  overflow: hidden;
-}
-
-.dashboard-canvas::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: radial-gradient(circle at center, black, transparent 80%);
-  animation: grid-pan 25s linear infinite;
-  z-index: 0;
-}
-
-.dashboard-canvas::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.01), transparent);
-  background-size: 100% 8px;
-  opacity: 0.15;
-  z-index: 1;
-  animation: scanline 12s linear infinite;
-}
-
-.terminal-cursor {
-  animation: blink-cursor 1s step-end infinite;
-}
-
-/* Custom Scrollbar for list and console sections */
+/* Quiet, standard scrollbar — kept subtle, not a reinvented affordance. */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: var(--surface-sunken);
-  border-radius: 4px;
+  background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: var(--border-strong);
@@ -258,179 +218,28 @@
   background: var(--text-tertiary);
 }
 
-/* Circular Gauge Animation */
+/* Circular Gauge: one calm transition, conveys value, not decoration. */
 .gauge-circle {
-  transition: stroke-dashoffset 1s cubic-bezier(0.25, 1, 0.5, 1);
+  transition: stroke-dashoffset 0.6s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
+/* Subtle hover affordance on selectable rows. No neon, no translate. */
 .hover-glow {
-  transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+  transition: border-color 0.2s cubic-bezier(0.25, 1, 0.5, 1), background-color 0.2s cubic-bezier(0.25, 1, 0.5, 1);
 }
 .hover-glow:hover {
-  box-shadow: 0 0 20px rgba(101, 87, 245, 0.15);
-  border-color: rgba(101, 87, 245, 0.4);
-  transform: translateY(-2px);
+  border-color: var(--interactive-primary-bg);
 }
 
-/* Animations from import.md */
-.shiny-text {
-  background: linear-gradient(
-    120deg,
-    #F3F2EF 40%,
-    rgba(101, 87, 245, 0.8) 50%,
-    #F3F2EF 60%
-  );
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  display: inline-block;
-  animation: shine 5s linear infinite;
-}
-
-.shiny-text.disabled {
-  background: none;
-  -webkit-text-fill-color: initial;
-  background-clip: initial;
-  animation: none;
-}
-
-@keyframes shine {
-  0% {
-    background-position: 200% center;
+/* Reduced motion: respect the preference for every remaining transition. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
-  100% {
-    background-position: -200% center;
+  .gauge-circle {
+    transition: none;
   }
 }
-
-.soft-aurora-container {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-}
-
-.soft-aurora-ambient {
-  position: absolute;
-  inset: 0;
-  filter: blur(120px);
-  opacity: 0.4;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.aurora-blob {
-  position: absolute;
-  border-radius: 50%;
-  mix-blend-mode: plus-lighter;
-  filter: opacity(0.85);
-  animation: moveBlob 25s infinite alternate ease-in-out;
-}
-
-.blob-1 {
-  width: 70%;
-  height: 70%;
-  top: -10%;
-  left: -10%;
-  animation-duration: 22s;
-}
-
-.blob-2 {
-  width: 65%;
-  height: 65%;
-  bottom: -15%;
-  right: -10%;
-  animation-duration: 28s;
-  animation-delay: -5s;
-}
-
-.blob-3 {
-  width: 55%;
-  height: 55%;
-  top: 35%;
-  left: 25%;
-  animation-duration: 35s;
-  animation-delay: -10s;
-}
-
-@keyframes moveBlob {
-  0% {
-    transform: translate(0px, 0px) scale(1);
-  }
-  33% {
-    transform: translate(40px, -60px) scale(1.15);
-  }
-  66% {
-    transform: translate(-30px, 30px) scale(0.9);
-  }
-  100% {
-    transform: translate(0px, 0px) scale(1);
-  }
-}
-
-.soft-aurora-content {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  height: 100%;
-}
-
-.spotlight-card {
-  position: relative;
-  border-radius: 12px;
-  background: #121110;
-  border: 1px solid #2E2B26;
-  overflow: hidden;
-}
-
-.spotlight-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    circle 220px at var(--x) var(--y),
-    var(--spotlight-color),
-    transparent 80%
-  );
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  pointer-events: none;
-  z-index: 1;
-}
-
-.spotlight-card:hover::before {
-  opacity: 1;
-}
-
-.spotlight-card-border {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: radial-gradient(
-    circle 160px at var(--x) var(--y),
-    rgba(101, 87, 245, 0.4),
-    transparent 70%
-  );
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: 2;
-}
-
-.spotlight-card:hover .spotlight-card-border {
-  opacity: 1;
-}
-
-.spotlight-card-content {
-  position: relative;
-  z-index: 3;
-  width: 100%;
-  height: 100%;
-}
-
-

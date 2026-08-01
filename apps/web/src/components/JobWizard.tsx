@@ -7,6 +7,18 @@ interface JobWizardProps {
   onClose: () => void;
 }
 
+// Minimal inline icon set (monochrome, currentColor). No external dependency.
+type IconProps = React.SVGProps<SVGSVGElement>;
+const IconClose = (p: IconProps) => (
+  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" {...p}><path d="m5 5 10 10M15 5 5 15" /></svg>
+);
+const IconCheck = (p: IconProps) => (
+  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="m4 10.5 4 4 8-9" /></svg>
+);
+const IconVideo = (p: IconProps) => (
+  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...p}><rect x="2.5" y="4.5" width="11" height="11" rx="2" /><path d="m13.5 8 4-2.2v8.4l-4-2.2" /></svg>
+);
+
 export default function JobWizard({ onJobCreated, onClose }: JobWizardProps) {
   const [projectName, setProjectName] = useState("");
   const [videoName, setVideoName] = useState("");
@@ -121,12 +133,12 @@ export default function JobWizard({ onJobCreated, onClose }: JobWizardProps) {
           setUploadState("scanning");
           setTimeout(async () => {
             setUploadState("clean");
-            
+
             // 5. Trigger GPU processing
             try {
               const startResponse = await fetch(`/api/jobs/${job_id}/start`, { method: "POST" });
               if (!startResponse.ok) throw new Error("Failed to trigger GPU worker");
-              
+
               onJobCreated();
               onClose();
             } catch (err: any) {
@@ -153,30 +165,28 @@ export default function JobWizard({ onJobCreated, onClose }: JobWizardProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B0A09]/80 p-4">
       <div className="w-full max-w-lg bg-[#161512]/95 border border-[#2E2B26] rounded-md p-6 flex flex-col gap-6 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)] relative overflow-hidden">
-        {/* Subtle decorative background glow */}
-        <div className="absolute top-0 right-0 w-48 h-48 bg-iris-500/5 rounded-full filter blur-[40px] pointer-events-none" />
-        
         {/* Header */}
         <div className="flex justify-between items-center border-b border-[#2E2B26] pb-4">
           <div>
-            <h3 className="text-base font-bold tracking-tight text-[#F3F2EF]">Create Scoring Job</h3>
-            <p className="text-[11px] text-graphite-secondary mt-0.5">Upload advertisement video for neuromarketing analysis</p>
+            <h3 className="text-lg font-semibold tracking-tight text-[#F3F2EF]">Create scoring job</h3>
+            <p className="text-sm text-graphite-secondary mt-0.5">Upload advertisement video for neuromarketing analysis</p>
           </div>
-          <button 
-            onClick={onClose} 
+          <button
+            onClick={onClose}
             disabled={uploadState === "uploading" || uploadState === "scanning"}
-            className="text-graphite-tertiary hover:text-graphite-primary text-xl font-mono p-1 transition-colors disabled:opacity-30"
+            aria-label="Close"
+            className="text-graphite-tertiary hover:text-graphite-primary p-1 transition-colors disabled:opacity-30 rounded-md hover:bg-graphite-sunken"
           >
-            &times;
+            <IconClose className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleStartSubmit} className="flex flex-col gap-5 text-xs">
+        <form onSubmit={handleStartSubmit} className="flex flex-col gap-5 text-sm">
           {/* Project Name input */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-mono text-graphite-tertiary uppercase tracking-wider">Project / Campaign Name</label>
+            <label className="text-xs font-mono text-graphite-tertiary tracking-wider">Project or campaign name</label>
             <input
               type="text"
               required
@@ -184,13 +194,13 @@ export default function JobWizard({ onJobCreated, onClose }: JobWizardProps) {
               placeholder="e.g. Mantri Square Launch Campaign"
               value={projectName}
               onChange={(e) => setProjectName(e.target.value)}
-              className="px-3.5 py-2.5 bg-graphite-sunken border border-graphite-subtle rounded text-[#F3F2EF] placeholder-[#615D55] focus:outline-none focus:border-iris-primary focus:ring-1 focus:ring-iris-primary transition-all disabled:opacity-50 font-sans"
+              className="px-3.5 py-2.5 bg-graphite-sunken border border-graphite-subtle rounded-md text-[#F3F2EF] placeholder-[#615D55] focus:outline-none focus:border-iris-primary focus:ring-1 focus:ring-iris-primary transition-all disabled:opacity-50 font-sans"
             />
           </div>
 
           {/* Media File Upload area */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-mono text-graphite-tertiary uppercase tracking-wider">Multimodal Video File (9:16 Recommended)</label>
+            <label className="text-xs font-mono text-graphite-tertiary tracking-wider">Multimodal video file (9:16 recommended)</label>
             <input
               type="file"
               ref={fileInputRef}
@@ -200,38 +210,38 @@ export default function JobWizard({ onJobCreated, onClose }: JobWizardProps) {
               disabled={uploadState !== "idle" && uploadState !== "error"}
               className="hidden"
             />
-            
+
             {!file ? (
-              <div 
+              <div
                 onClick={triggerFileSelect}
-                className="border border-dashed border-[#46433C] hover:border-iris-primary/70 bg-[#121110] rounded p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-3 group"
+                className="border border-dashed border-[#46433C] hover:border-iris-primary/70 bg-[#121110] rounded-md p-6 text-center cursor-pointer transition-colors flex flex-col items-center justify-center gap-3 group"
               >
-                {/* Visual 9:16 frame logo with Ember spark */}
-                <div className="w-12 h-16 rounded border-2 border-graphite-secondary group-hover:border-iris-primary flex items-center justify-center relative p-1.5 transition-all">
+                {/* Visual 9:16 frame logo with Ember spark — the one Ember spend. */}
+                <div className="w-12 h-16 rounded border-2 border-graphite-secondary group-hover:border-iris-primary flex items-center justify-center relative p-1.5 transition-colors">
                   <div className="w-0 h-0 border-t-[5px] border-t-transparent border-b-[5px] border-b-transparent border-l-[8px] border-l-ember-creative absolute right-2 top-[calc(50%-5px)] transform translate-x-1/2 group-hover:scale-110 transition-transform" />
-                  <span className="text-[8px] font-mono text-graphite-tertiary group-hover:text-iris-primary transition-colors">9:16</span>
+                  <span className="text-xs font-mono text-graphite-tertiary group-hover:text-iris-primary transition-colors leading-none">9:16</span>
                 </div>
                 <div>
-                  <p className="font-semibold text-graphite-secondary group-hover:text-graphite-primary transition-colors">Click to select MP4 ad video</p>
-                  <p className="text-[10px] text-graphite-tertiary mt-1">Accepts standard video formats up to 200MB</p>
+                  <p className="font-semibold text-sm text-graphite-secondary group-hover:text-graphite-primary transition-colors">Click to select MP4 ad video</p>
+                  <p className="text-xs text-graphite-tertiary mt-1">Accepts standard video formats up to 200MB</p>
                 </div>
               </div>
             ) : (
-              <div className="border border-[#2E2B26] bg-[#121110] rounded p-4 flex items-center justify-between gap-4">
+              <div className="border border-[#2E2B26] bg-[#121110] rounded-md p-4 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 bg-graphite-sunken border border-graphite-subtle rounded flex items-center justify-center text-lg shrink-0">
-                    🎬
+                  <div className="w-10 h-10 bg-graphite-sunken border border-graphite-subtle rounded-md flex items-center justify-center shrink-0 text-iris-primary">
+                    <IconVideo className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
-                    <p className="font-semibold text-[#F3F2EF] truncate" title={file.name}>{file.name}</p>
-                    <p className="text-[10px] text-graphite-secondary font-mono">{formatSize(file.size)}</p>
+                    <p className="font-semibold text-sm text-[#F3F2EF] truncate" title={file.name}>{file.name}</p>
+                    <p className="text-xs text-graphite-secondary font-mono">{formatSize(file.size)}</p>
                   </div>
                 </div>
                 {(uploadState === "idle" || uploadState === "error") && (
                   <button
                     type="button"
                     onClick={triggerFileSelect}
-                    className="text-[10px] font-semibold text-iris-primary hover:underline"
+                    className="text-xs font-semibold text-iris-primary hover:underline"
                   >
                     Change file
                   </button>
@@ -243,13 +253,13 @@ export default function JobWizard({ onJobCreated, onClose }: JobWizardProps) {
           {/* Model options */}
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-mono text-graphite-tertiary uppercase tracking-wider">Cluster Model</label>
+              <label className="text-xs font-mono text-graphite-tertiary tracking-wider">Cluster model</label>
               <div className="relative">
                 <select
                   value={clusterMode}
                   disabled={uploadState !== "idle" && uploadState !== "error"}
                   onChange={(e) => setClusterMode(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-graphite-sunken border border-graphite-subtle rounded text-[#F3F2EF] focus:outline-none focus:border-iris-primary appearance-none disabled:opacity-50 cursor-pointer font-sans"
+                  className="w-full px-3.5 py-2.5 bg-graphite-sunken border border-graphite-subtle rounded-md text-[#F3F2EF] focus:outline-none focus:border-iris-primary appearance-none disabled:opacity-50 cursor-pointer font-sans"
                 >
                   <option value="15">15 Clusters (Default)</option>
                   <option value="17">17 Clusters (A-Q)</option>
@@ -260,15 +270,15 @@ export default function JobWizard({ onJobCreated, onClose }: JobWizardProps) {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-mono text-graphite-tertiary uppercase tracking-wider">Output Mode</label>
+              <label className="text-xs font-mono text-graphite-tertiary tracking-wider">Output mode</label>
               <div className="relative">
                 <select
                   value={outputMode}
                   disabled={uploadState !== "idle" && uploadState !== "error"}
                   onChange={(e) => setOutputMode(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-graphite-sunken border border-graphite-subtle rounded text-[#F3F2EF] focus:outline-none focus:border-iris-primary appearance-none disabled:opacity-50 cursor-pointer font-sans"
+                  className="w-full px-3.5 py-2.5 bg-graphite-sunken border border-graphite-subtle rounded-md text-[#F3F2EF] focus:outline-none focus:border-iris-primary appearance-none disabled:opacity-50 cursor-pointer font-sans"
                 >
                   <option value="full_export">Full Export Bundle</option>
                   <option value="scoring_only">Scoring Outcomes Only</option>
@@ -291,35 +301,30 @@ export default function JobWizard({ onJobCreated, onClose }: JobWizardProps) {
                 onChange={(e) => setRunLlm(e.target.checked)}
                 className="sr-only peer"
               />
-              <div className="w-8 h-4.5 bg-graphite-sunken rounded-full peer peer-focus:ring-1 peer-focus:ring-iris-primary peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#B4B0A7] after:border-[#2e2b26] after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:after:bg-white peer-checked:bg-iris-primary transition-colors duration-200"></div>
-              <span className="ml-2 text-graphite-secondary select-none">Compile Creative Handoff & LLM Explanation</span>
+              <div className="w-9 h-5 bg-graphite-sunken rounded-full peer peer-focus:ring-1 peer-focus:ring-iris-primary peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#B4B0A7] after:border-[#2e2b26] after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:bg-white peer-checked:bg-iris-primary transition-colors duration-200"></div>
+              <span className="ml-2 text-sm text-graphite-secondary select-none">Compile creative handoff and LLM explanation</span>
             </label>
           </div>
 
           {/* Upload Progress/Status Screen */}
           {uploadState !== "idle" && (
-            <div className="bg-[#121110] p-4 border border-[#2E2B26] rounded flex flex-col gap-3 relative overflow-hidden">
-              {/* If scanning, display moving green scanner bar overlay */}
-              {uploadState === "scanning" && (
-                <div className="absolute inset-x-0 top-0 h-0.5 bg-emerald-500/80 shadow-[0_0_12px_rgba(16,185,129,0.8)] animate-[scanline_1.8s_ease-in-out_infinite] z-10" />
-              )}
-
-              <div className="flex justify-between items-center text-[10px] font-mono">
-                <span className="text-graphite-tertiary uppercase tracking-wider">Status: {uploadState}</span>
+            <div className="bg-[#121110] p-4 border border-[#2E2B26] rounded-md flex flex-col gap-3 relative overflow-hidden">
+              <div className="flex justify-between items-center text-xs font-mono">
+                <span className="text-graphite-tertiary tracking-wider">Status: {uploadState}</span>
                 {uploadState === "uploading" && (
                   <span className="text-graphite-secondary font-mono">{uploadProgress}%</span>
                 )}
               </div>
-              
+
               {uploadState === "uploading" && (
                 <div className="flex flex-col gap-2">
                   <div className="w-full bg-graphite-sunken h-1.5 rounded-full overflow-hidden">
-                    <div 
-                      className="bg-iris-primary h-full rounded-full transition-all duration-200" 
+                    <div
+                      className="bg-iris-primary h-full rounded-full transition-all duration-200"
                       style={{ width: `${uploadProgress}%` }}
                     />
                   </div>
-                  <div className="flex justify-between text-[10px] text-graphite-tertiary font-mono">
+                  <div className="flex justify-between text-xs text-graphite-tertiary font-mono">
                     <span>{formatSize(uploadedBytes)} / {formatSize(totalBytes)}</span>
                     <span className="text-iris-primary">{uploadSpeed}</span>
                   </div>
@@ -328,35 +333,35 @@ export default function JobWizard({ onJobCreated, onClose }: JobWizardProps) {
 
               {uploadState === "requesting" && (
                 <div className="flex items-center gap-2 text-graphite-secondary font-mono">
-                  <svg className="animate-spin h-3.5 w-3.5 text-iris-primary" fill="none" viewBox="0 0 24 24">
+                  <svg className="animate-spin h-3.5 w-3.5 text-iris-primary" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  <span>Securing workspace lease...</span>
+                  <span>Securing workspace lease…</span>
                 </div>
               )}
 
               {uploadState === "scanning" && (
-                <div className="flex items-center gap-2 text-emerald-500 font-mono animate-pulse">
-                  <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25 stroke-emerald-900" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <div className="flex items-center gap-2 text-iris-primary font-mono">
+                  <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  <span>Performing binary quarantine scanner analysis...</span>
+                  <span>Performing binary quarantine scanner analysis…</span>
                 </div>
               )}
 
               {uploadState === "clean" && (
                 <div className="text-[#5BD08C] font-mono flex items-center gap-2">
-                  <span>✓</span>
-                  <span>File verified clean. Launching GPU processing node...</span>
+                  <IconCheck className="w-4 h-4 shrink-0" />
+                  <span>File verified clean. Launching GPU processing node…</span>
                 </div>
               )}
 
               {uploadState === "error" && (
                 <div className="text-[#F2786C] font-mono flex flex-col gap-1">
-                  <span className="font-bold uppercase text-[9px] tracking-wide">Error Details:</span>
-                  <span className="leading-relaxed">{errorMsg}</span>
+                  <span className="font-bold text-xs tracking-wide">Error details:</span>
+                  <span className="leading-relaxed text-sm">{errorMsg}</span>
                 </div>
               )}
             </div>
@@ -368,16 +373,16 @@ export default function JobWizard({ onJobCreated, onClose }: JobWizardProps) {
               type="button"
               onClick={onClose}
               disabled={uploadState === "uploading" || uploadState === "scanning"}
-              className="px-4 py-2 text-xs font-semibold rounded bg-graphite-sunken border border-graphite-subtle text-graphite-secondary hover:text-graphite-primary transition-all disabled:opacity-40"
+              className="px-4 py-2 text-sm font-semibold rounded-md bg-graphite-sunken border border-graphite-subtle text-graphite-secondary hover:text-graphite-primary transition-colors disabled:opacity-40"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!projectName || !file || uploadState === "uploading" || uploadState === "scanning"}
-              className="px-5 py-2 text-xs font-semibold rounded bg-iris-primary text-white hover:brightness-110 transition-all disabled:opacity-40 shadow-[0_0_20px_rgba(101,87,245,0.2)]"
+              className="px-5 py-2 text-sm font-semibold rounded-md bg-iris-primary text-white hover:brightness-110 transition-colors disabled:opacity-40"
             >
-              Submit & Score
+              Submit and score
             </button>
           </div>
         </form>

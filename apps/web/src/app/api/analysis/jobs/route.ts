@@ -125,6 +125,7 @@ export async function POST(req: NextRequest) {
       targetPlatform,
       placement,
       creativeGoal,
+      selectedModel,
     } = body;
 
     if (!mode || !inputArtifactId || !inputObjectKey || !mediaType) {
@@ -174,6 +175,7 @@ export async function POST(req: NextRequest) {
         targetPlatform,
         placement,
         creativeGoal,
+        selectedModel: selectedModel || null,
         stages: {
           create: stagesList.map((stageName, idx) => ({
             stageName,

@@ -750,6 +750,7 @@ model AnalysisJob {
   targetPlatform   String?              @map("target_platform") @db.VarChar(80)
   placement        String?              @map("placement") @db.VarChar(80)
   creativeGoal     String?              @map("creative_goal") @db.VarChar(240)
+  selectedModel    String?              @map("selected_model") @db.VarChar(80)
   
   // Lease Management
   leaseOwner       String?              @map("lease_owner") @db.VarChar(160)
