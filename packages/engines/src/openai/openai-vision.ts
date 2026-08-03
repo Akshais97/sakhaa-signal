@@ -191,6 +191,15 @@ export async function analyzeStaticCreativeWithOpenAI(
       evidenceIds: Array.isArray(f.evidenceIds) ? f.evidenceIds : [],
     }));
 
+    const normalizeStringOrObject = (item: any): string => {
+      if (item === null || item === undefined) return "";
+      if (typeof item === "string") return item;
+      if (typeof item === "object") {
+        return item.action || item.recommendation || item.title || item.description || item.text || item.hypothesis || JSON.stringify(item);
+      }
+      return String(item);
+    };
+
     return {
       extractedText: parsedExtraction.extractedText || "",
       textCoveragePercent: typeof parsedExtraction.textCoveragePercent === "number" ? parsedExtraction.textCoveragePercent : 0,
@@ -201,8 +210,12 @@ export async function analyzeStaticCreativeWithOpenAI(
       observations,
       executiveSummary: parsedSynthesis.executiveSummary || parsedExtraction.executiveSummary || "Creative analysis completed.",
       findings,
-      suggestedActionPlan: Array.isArray(parsedSynthesis.suggestedActionPlan) ? parsedSynthesis.suggestedActionPlan : [],
-      quickWins: Array.isArray(parsedSynthesis.quickWins) ? parsedSynthesis.quickWins : [],
+      suggestedActionPlan: Array.isArray(parsedSynthesis.suggestedActionPlan)
+        ? parsedSynthesis.suggestedActionPlan.map(normalizeStringOrObject)
+        : [],
+      quickWins: Array.isArray(parsedSynthesis.quickWins)
+        ? parsedSynthesis.quickWins.map(normalizeStringOrObject)
+        : [],
       abVariantHypotheses: Array.isArray(parsedSynthesis.abVariantHypotheses) ? parsedSynthesis.abVariantHypotheses : [],
       confidenceInterval: parsedExtraction.scoring?.confidenceInterval || [60, 75],
       rawMetrics: {

@@ -14,6 +14,12 @@ import {
   analyzeStaticCreativeWithOpenAI,
   evaluateStaticRules,
   computeStaticCategoryScores,
+  inspectVideo,
+  analyzeVideoWithIntelligence,
+  transcribeAudioWithGroq,
+  classifyAudioWithYAMNet,
+  scoreVideoCreative,
+  generateVideoSynthesis,
 } from "@sakhaa-signal/engines";
 import { readFile } from "node:fs/promises";
 
@@ -74,172 +80,18 @@ export async function processJob(job: any) {
     await storage.downloadToLocal(job.inputObjectKey, localInputPath);
     await updateStage(job.id, "DOWNLOAD_AND_VALIDATE", "SUCCEEDED", 20);
 
-    const imageBuffer = await readFile(localInputPath);
-    if (!imageBuffer || imageBuffer.byteLength === 0) {
-      throw new Error(`Downloaded media file (${job.inputObjectKey}) is empty (0 bytes). Please re-upload a valid image file.`);
+    const mediaBuffer = await readFile(localInputPath);
+    if (!mediaBuffer || mediaBuffer.byteLength === 0) {
+      throw new Error(`Downloaded media file (${job.inputObjectKey}) is empty (0 bytes). Please re-upload a valid file.`);
     }
 
-    // 2. Preprocessing Stage (Inspection)
-    await updateStage(job.id, "PREPROCESSING", "RUNNING", 30);
-    const inspection = await inspectImage(imageBuffer);
-    await updateStage(job.id, "PREPROCESSING", "SUCCEEDED", 40);
+    const isVideo = job.mediaType === "VIDEO" || job.mode === "VIDEO_STANDARD" || job.inputObjectKey.match(/\.(mp4|mov|webm)$/i);
 
-    // 3. Unified OpenAI Computer Vision & OCR Stage
-    await updateStage(job.id, "COMPUTER_VISION", "RUNNING", 50);
-    const vision = await analyzeStaticCreativeWithOpenAI(
-      imageBuffer,
-      inspection,
-      {
-        brandName: job.brandName,
-        targetPlatform: job.targetPlatform,
-        placement: job.placement,
-        creativeGoal: job.creativeGoal,
-      },
-      job.selectedModel
-    );
-
-    // Store Evidence Observations in DB
-    for (const obs of vision.observations) {
-      await prisma.evidenceObservation.create({
-        data: {
-          analysisJobId: job.id,
-          observationType: obs.observationType,
-          label: obs.label,
-          confidence: obs.confidence,
-          boundingBox: obs.boundingBox ? (obs.boundingBox as any) : undefined,
-          provider: obs.provider,
-        },
-      });
+    if (isVideo) {
+      await processVideoJob(job, mediaBuffer);
+    } else {
+      await processStaticJob(job, mediaBuffer);
     }
-    await updateStage(job.id, "COMPUTER_VISION", "SUCCEEDED", 65);
-
-    // 4. Rule Evaluation Stage
-    await updateStage(job.id, "RULE_EVALUATION", "RUNNING", 75);
-    const rules = evaluateStaticRules(inspection, vision, {
-      brandName: job.brandName,
-      creativeGoal: job.creativeGoal,
-    });
-
-    for (const r of rules) {
-      await prisma.ruleResult.create({
-        data: {
-          analysisJobId: job.id,
-          ruleCode: r.ruleCode,
-          status: r.status,
-          expected: r.expected,
-          actual: r.actual,
-          severity: r.severity,
-          evidenceIds: r.evidenceIds ? (r.evidenceIds as any) : undefined,
-        },
-      });
-    }
-    await updateStage(job.id, "RULE_EVALUATION", "SUCCEEDED", 80);
-
-    // 5. Deterministic Scoring Stage
-    await updateStage(job.id, "DETERMINISTIC_SCORING", "RUNNING", 85);
-    const scoring = computeStaticCategoryScores(inspection, vision, rules, {
-      targetPlatform: job.targetPlatform,
-      brandName: job.brandName,
-      creativeGoal: job.creativeGoal,
-    });
-
-    for (const cs of scoring.categoryScores) {
-      await prisma.categoryScore.create({
-        data: {
-          analysisJobId: job.id,
-          category: cs.category,
-          score: cs.score,
-          confidence: cs.confidence,
-          weight: cs.weight,
-          breakdown: cs.breakdown ? (cs.breakdown as any) : undefined,
-        },
-      });
-    }
-    await updateStage(job.id, "DETERMINISTIC_SCORING", "SUCCEEDED", 90);
-
-    // 6. Strategic Synthesis Stage (Persist Findings from OpenAI Vision)
-    await updateStage(job.id, "MULTIMODAL_GPT_SYNTHESIS", "RUNNING", 92);
-    for (const f of vision.findings) {
-      await prisma.finding.create({
-        data: {
-          analysisJobId: job.id,
-          type: f.type,
-          category: f.category,
-          title: f.title,
-          description: f.description,
-          recommendation: f.recommendation,
-          impactPriority: f.impactPriority,
-          evidenceIds: (f.evidenceRefs && f.evidenceRefs.length > 0) ? (f.evidenceRefs as any) : (f.evidenceIds as any),
-        },
-      });
-    }
-    await updateStage(job.id, "MULTIMODAL_GPT_SYNTHESIS", "SUCCEEDED", 95);
-
-    // 7. Report Publishing Stage
-    await updateStage(job.id, "REPORT_PUBLISHING", "RUNNING", 98);
-    
-    const summaryJson = {
-      jobId: job.id,
-      title: job.title,
-      mode: job.mode,
-      status: "SUCCEEDED",
-      selectedModel: vision.modelUsed,
-      overallScore: scoring.overallScore,
-      confidenceInterval: scoring.confidenceInterval || vision.confidenceInterval,
-      appliedRules: scoring.appliedRules || [],
-      inspection,
-      visionSummary: {
-        extractedText: vision.extractedText,
-        textCoveragePercent: vision.textCoveragePercent,
-        hasLogo: vision.hasLogo,
-        logoLabel: vision.logoLabel,
-        hasFace: vision.hasFace,
-        dominantColors: vision.dominantColors,
-      },
-      categoryScores: scoring.categoryScores,
-      rawMetrics: vision.rawMetrics,
-      rules,
-      executiveSummary: vision.executiveSummary,
-      findings: vision.findings,
-      quickWins: vision.quickWins || [],
-      abVariantHypotheses: vision.abVariantHypotheses || [],
-      suggestedActionPlan: vision.suggestedActionPlan,
-      completedAt: new Date().toISOString(),
-    };
-
-    const reportKey = `workspaces/${job.workspaceId}/reports/${job.id}/report.json`;
-    await storage.uploadArtifactBuffer(
-      Buffer.from(JSON.stringify(summaryJson, null, 2)),
-      reportKey,
-      "application/json"
-    );
-
-    await prisma.reportArtifact.create({
-      data: {
-        analysisJobId: job.id,
-        reportType: "FULL_JSON",
-        objectKey: reportKey,
-        schemaVersion: "v1",
-        summaryJson: summaryJson as any,
-      },
-    });
-
-    await updateStage(job.id, "REPORT_PUBLISHING", "SUCCEEDED", 100);
-
-    // Mark Job SUCCEEDED
-    await prisma.analysisJob.update({
-      where: { id: job.id },
-      data: {
-        status: "SUCCEEDED",
-        progressPercent: 100,
-        currentStage: "COMPLETED",
-        completedAt: new Date(),
-        leaseOwner: null,
-        leaseExpiresAt: null,
-      },
-    });
-
-    console.log(`[SIGNAL_CPU_WORKER] Successfully completed Job: ${job.id} with Overall Score: ${scoring.overallScore}/100`);
   } catch (error: any) {
     console.error(`[SIGNAL_CPU_WORKER] Job Failed: ${job.id}`, error);
     await prisma.analysisJob.update({
@@ -252,6 +104,278 @@ export async function processJob(job: any) {
       },
     });
   }
+}
+
+async function processStaticJob(job: any, imageBuffer: Buffer) {
+  // Preprocessing Stage (Inspection)
+  await updateStage(job.id, "PREPROCESSING", "RUNNING", 30);
+  const inspection = await inspectImage(imageBuffer);
+  await updateStage(job.id, "PREPROCESSING", "SUCCEEDED", 40);
+
+  // Computer Vision Stage
+  await updateStage(job.id, "COMPUTER_VISION", "RUNNING", 50);
+  const vision = await analyzeStaticCreativeWithOpenAI(
+    imageBuffer,
+    inspection,
+    {
+      brandName: job.brandName,
+      targetPlatform: job.targetPlatform,
+      placement: job.placement,
+      creativeGoal: job.creativeGoal,
+    },
+    job.selectedModel
+  );
+
+  for (const obs of vision.observations) {
+    await prisma.evidenceObservation.create({
+      data: {
+        analysisJobId: job.id,
+        observationType: obs.observationType,
+        label: obs.label,
+        confidence: obs.confidence,
+        boundingBox: obs.boundingBox ? (obs.boundingBox as any) : undefined,
+        provider: obs.provider,
+      },
+    });
+  }
+  await updateStage(job.id, "COMPUTER_VISION", "SUCCEEDED", 65);
+
+  // Rule Evaluation Stage
+  await updateStage(job.id, "RULE_EVALUATION", "RUNNING", 75);
+  const rules = evaluateStaticRules(inspection, vision, {
+    brandName: job.brandName,
+    creativeGoal: job.creativeGoal,
+  });
+
+  for (const r of rules) {
+    await prisma.ruleResult.create({
+      data: {
+        analysisJobId: job.id,
+        ruleCode: r.ruleCode,
+        status: r.status,
+        expected: r.expected,
+        actual: r.actual,
+        severity: r.severity,
+        evidenceIds: r.evidenceIds ? (r.evidenceIds as any) : undefined,
+      },
+    });
+  }
+  await updateStage(job.id, "RULE_EVALUATION", "SUCCEEDED", 80);
+
+  // Deterministic Scoring Stage
+  await updateStage(job.id, "DETERMINISTIC_SCORING", "RUNNING", 85);
+  const scoring = computeStaticCategoryScores(inspection, vision, rules, {
+    targetPlatform: job.targetPlatform,
+    brandName: job.brandName,
+    creativeGoal: job.creativeGoal,
+  });
+
+  for (const cs of scoring.categoryScores) {
+    await prisma.categoryScore.create({
+      data: {
+        analysisJobId: job.id,
+        category: cs.category,
+        score: cs.score,
+        confidence: cs.confidence,
+        weight: cs.weight,
+        breakdown: cs.breakdown ? (cs.breakdown as any) : undefined,
+      },
+    });
+  }
+  await updateStage(job.id, "DETERMINISTIC_SCORING", "SUCCEEDED", 90);
+
+  // Strategic Synthesis Stage
+  await updateStage(job.id, "MULTIMODAL_GPT_SYNTHESIS", "RUNNING", 92);
+  for (const f of vision.findings) {
+    await prisma.finding.create({
+      data: {
+        analysisJobId: job.id,
+        type: f.type,
+        category: f.category,
+        title: f.title,
+        description: f.description,
+        recommendation: f.recommendation,
+        impactPriority: f.impactPriority,
+        evidenceIds: (f.evidenceRefs && f.evidenceRefs.length > 0) ? (f.evidenceRefs as any) : (f.evidenceIds as any),
+      },
+    });
+  }
+  await updateStage(job.id, "MULTIMODAL_GPT_SYNTHESIS", "SUCCEEDED", 95);
+
+  // Report Publishing
+  await updateStage(job.id, "REPORT_PUBLISHING", "RUNNING", 98);
+  const summaryJson = {
+    jobId: job.id,
+    title: job.title,
+    mode: job.mode,
+    status: "SUCCEEDED",
+    selectedModel: vision.modelUsed,
+    overallScore: scoring.overallScore,
+    confidenceInterval: scoring.confidenceInterval || vision.confidenceInterval,
+    appliedRules: scoring.appliedRules || [],
+    inspection,
+    visionSummary: {
+      extractedText: vision.extractedText,
+      textCoveragePercent: vision.textCoveragePercent,
+      hasLogo: vision.hasLogo,
+      logoLabel: vision.logoLabel,
+      hasFace: vision.hasFace,
+      dominantColors: vision.dominantColors,
+    },
+    categoryScores: scoring.categoryScores,
+    rawMetrics: vision.rawMetrics,
+    rules,
+    executiveSummary: vision.executiveSummary,
+    findings: vision.findings,
+    quickWins: vision.quickWins || [],
+    abVariantHypotheses: vision.abVariantHypotheses || [],
+    suggestedActionPlan: vision.suggestedActionPlan,
+    completedAt: new Date().toISOString(),
+  };
+
+  await saveReportAndComplete(job, summaryJson);
+}
+
+async function processVideoJob(job: any, videoBuffer: Buffer) {
+  // 1. Preprocessing Stage (Inspection & Keyframe Extraction)
+  await updateStage(job.id, "PREPROCESSING", "RUNNING", 30);
+  const inspection = await inspectVideo(videoBuffer, path.basename(job.inputObjectKey));
+  await updateStage(job.id, "PREPROCESSING", "SUCCEEDED", 40);
+
+  // 2. Video Intelligence & Speech/Audio Stage
+  await updateStage(job.id, "COMPUTER_VISION", "RUNNING", 50);
+  const intelligence = await analyzeVideoWithIntelligence(videoBuffer, inspection.durationMs);
+  const transcript = await transcribeAudioWithGroq(inspection.audioWavBuffer, inspection.durationMs);
+  const audio = await classifyAudioWithYAMNet(inspection.audioWavBuffer, inspection.durationMs);
+  await updateStage(job.id, "COMPUTER_VISION", "SUCCEEDED", 65);
+
+  // 3. Rule & Scoring Stage
+  await updateStage(job.id, "DETERMINISTIC_SCORING", "RUNNING", 80);
+  const scoring = scoreVideoCreative(inspection, intelligence, transcript, audio);
+  
+  for (const [key, cs] of Object.entries(scoring.categoryScores)) {
+    await prisma.categoryScore.create({
+      data: {
+        analysisJobId: job.id,
+        category: key.toUpperCase(),
+        score: cs.score,
+        confidence: 0.9,
+        weight: cs.weight,
+        breakdown: { keyFactor: cs.keyFactor, label: cs.label, status: cs.status } as any,
+      },
+    });
+  }
+  await updateStage(job.id, "DETERMINISTIC_SCORING", "SUCCEEDED", 88);
+
+  // 4. Video Synthesis Stage (GPT-5.6 Sol Timeline Analysis)
+  await updateStage(job.id, "MULTIMODAL_GPT_SYNTHESIS", "RUNNING", 92);
+  const synthesis = await generateVideoSynthesis(
+    inspection,
+    intelligence,
+    transcript,
+    audio,
+    scoring,
+    { brandName: job.brandName, targetPlatform: job.targetPlatform, creativeGoal: job.creativeGoal }
+  );
+
+  for (const f of synthesis.findings) {
+    await prisma.finding.create({
+      data: {
+        analysisJobId: job.id,
+        type: f.type,
+        category: f.category,
+        title: f.title,
+        description: f.description,
+        recommendation: f.recommendation,
+        impactPriority: f.impactPriority,
+        evidenceIds: f.evidenceIds ? (f.evidenceIds as any) : undefined,
+      },
+    });
+  }
+  await updateStage(job.id, "MULTIMODAL_GPT_SYNTHESIS", "SUCCEEDED", 95);
+
+  // 5. Report Publishing Stage
+  await updateStage(job.id, "REPORT_PUBLISHING", "RUNNING", 98);
+  const summaryJson = {
+    jobId: job.id,
+    title: job.title,
+    mode: job.mode || "VIDEO_STANDARD",
+    status: "SUCCEEDED",
+    mediaType: "VIDEO",
+    overallScore: scoring.overallScore,
+    tier: scoring.tier,
+    inspection: {
+      durationMs: inspection.durationMs,
+      width: inspection.width,
+      height: inspection.height,
+      fps: inspection.fps,
+      aspectRatio: inspection.aspectRatio,
+      aspectRatioLabel: inspection.aspectRatioLabel,
+      hasAudio: inspection.hasAudio,
+      keyframeTimestamps: inspection.keyframes.map((k) => k.timestampMs),
+    },
+    intelligence: {
+      textAnnotations: intelligence.textAnnotations,
+      shotCuts: intelligence.shotCuts,
+      logos: intelligence.logos,
+    },
+    transcript: {
+      fullTranscript: transcript.fullTranscript,
+      words: transcript.words,
+      language: transcript.language,
+    },
+    audio: {
+      timeline: audio.timeline,
+      speechRatio: audio.speechRatio,
+      musicRatio: audio.musicRatio,
+      silenceRatio: audio.silenceRatio,
+    },
+    categoryScores: scoring.categoryScores,
+    executiveSummary: synthesis.executiveSummary,
+    hookDropoffRisk: synthesis.hookDropoffRisk,
+    first3SecImpactSummary: synthesis.first3SecImpactSummary,
+    findings: synthesis.findings,
+    suggestedActionPlan: synthesis.suggestedActionPlan,
+    recommendedAEditVariants: synthesis.recommendedAEditVariants || [],
+    completedAt: new Date().toISOString(),
+  };
+
+  await saveReportAndComplete(job, summaryJson);
+}
+
+async function saveReportAndComplete(job: any, summaryJson: any) {
+  const reportKey = `workspaces/${job.workspaceId}/reports/${job.id}/report.json`;
+  await storage.uploadArtifactBuffer(
+    Buffer.from(JSON.stringify(summaryJson, null, 2)),
+    reportKey,
+    "application/json"
+  );
+
+  await prisma.reportArtifact.create({
+    data: {
+      analysisJobId: job.id,
+      reportType: "FULL_JSON",
+      objectKey: reportKey,
+      schemaVersion: "v1",
+      summaryJson: summaryJson as any,
+    },
+  });
+
+  await updateStage(job.id, "REPORT_PUBLISHING", "SUCCEEDED", 100);
+
+  await prisma.analysisJob.update({
+    where: { id: job.id },
+    data: {
+      status: "SUCCEEDED",
+      progressPercent: 100,
+      currentStage: "COMPLETED",
+      completedAt: new Date(),
+      leaseOwner: null,
+      leaseExpiresAt: null,
+    },
+  });
+
+  console.log(`[SIGNAL_CPU_WORKER] Successfully completed Job: ${job.id} (${job.mode}) with Score: ${summaryJson.overallScore}/100`);
 }
 
 async function updateStage(jobId: string, stageName: string, status: string, progressPercent: number) {

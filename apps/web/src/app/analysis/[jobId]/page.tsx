@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import StaticReport from "./static-report";
+import VideoReport from "./video-report";
 import prisma from "@/lib/db";
 
 export default async function AnalysisPage({ params }: { params: Promise<{ jobId: string }> }) {
@@ -19,6 +20,12 @@ export default async function AnalysisPage({ params }: { params: Promise<{ jobId
 
   if (!job) {
     notFound();
+  }
+
+  const isVideo = job.mediaType === "VIDEO" || job.mode === "VIDEO_STANDARD" || job.inputObjectKey?.match(/\.(mp4|mov|webm)$/i);
+
+  if (isVideo) {
+    return <VideoReport job={job} />;
   }
 
   return <StaticReport job={job} />;
