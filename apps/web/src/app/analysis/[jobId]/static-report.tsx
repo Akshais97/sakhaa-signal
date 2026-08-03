@@ -123,6 +123,15 @@ export default function StaticReport({ job: initialJob }: StaticReportProps) {
     }
   };
 
+  const getStepText = (item: any): string => {
+    if (item === null || item === undefined) return "";
+    if (typeof item === "string") return item;
+    if (typeof item === "object") {
+      return item.action || item.recommendation || item.title || item.description || item.text || item.hypothesis || JSON.stringify(item);
+    }
+    return String(item);
+  };
+
   const handleCopyQuickWin = (text: string, index: number) => {
     navigator.clipboard.writeText(text);
     setCopiedIndex(index);
@@ -262,18 +271,27 @@ export default function StaticReport({ job: initialJob }: StaticReportProps) {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {quickWins.map((win: string, idx: number) => (
-                <div key={idx} className="p-3.5 bg-[#121110] border border-graphite-subtle rounded-md flex flex-col justify-between gap-3">
-                  <p className="text-sm text-graphite-secondary leading-relaxed">{win}</p>
-                  <button
-                    onClick={() => handleCopyQuickWin(win, idx)}
-                    className="self-end inline-flex items-center gap-1.5 text-xs text-iris-primary hover:text-iris-primary/80 transition-colors font-mono"
-                  >
-                    <IconCopy className="w-3.5 h-3.5" />
-                    <span>{copiedIndex === idx ? "Copied!" : "Copy"}</span>
-                  </button>
-                </div>
-              ))}
+              {quickWins.map((win: any, idx: number) => {
+                const winText = getStepText(win);
+                const impact = typeof win === "object" ? win?.expectedImpact : null;
+                return (
+                  <div key={idx} className="p-3.5 bg-[#121110] border border-graphite-subtle rounded-md flex flex-col justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="text-sm text-graphite-secondary leading-relaxed">{winText}</p>
+                      {impact && (
+                        <p className="text-xs font-mono text-[#5BD08C]">Expected Impact: {impact}</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => handleCopyQuickWin(winText, idx)}
+                      className="self-end inline-flex items-center gap-1.5 text-xs text-iris-primary hover:text-iris-primary/80 transition-colors font-mono"
+                    >
+                      <IconCopy className="w-3.5 h-3.5" />
+                      <span>{copiedIndex === idx ? "Copied!" : "Copy"}</span>
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -485,14 +503,23 @@ export default function StaticReport({ job: initialJob }: StaticReportProps) {
                     <span>Performance design action plan</span>
                   </h3>
                   <ul className="space-y-2 text-sm text-graphite-secondary">
-                    {suggestedActionPlan.map((step: string, idx: number) => (
-                      <li key={idx} className="flex items-start gap-2.5">
-                        <span className="font-mono text-iris-primary font-semibold shrink-0 bg-iris-primary/10 px-2 py-0.5 rounded text-xs">
-                          {idx + 1}
-                        </span>
-                        <span className="mt-0.5">{step}</span>
-                      </li>
-                    ))}
+                    {suggestedActionPlan.map((step: any, idx: number) => {
+                      const stepText = getStepText(step);
+                      const impact = typeof step === "object" ? step?.expectedImpact : null;
+                      return (
+                        <li key={idx} className="flex items-start gap-2.5">
+                          <span className="font-mono text-iris-primary font-semibold shrink-0 bg-iris-primary/10 px-2 py-0.5 rounded text-xs">
+                            {idx + 1}
+                          </span>
+                          <div className="mt-0.5 space-y-0.5">
+                            <span className="text-graphite-secondary">{stepText}</span>
+                            {impact && (
+                              <p className="text-xs text-graphite-tertiary font-mono">Impact: {impact}</p>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}
