@@ -19,7 +19,7 @@ export async function classifyAudioWithYAMNet(
   durationMs: number = 15000
 ): Promise<YAMNetClassificationResult> {
   if (!audioWavBuffer || audioWavBuffer.byteLength === 0) {
-    return generateFallbackAudioClassification(durationMs);
+    return getEmptyAudioClassificationResult(durationMs);
   }
 
   // Parse PCM audio frames for RMS / energy calculation per second chunk
@@ -60,13 +60,10 @@ export async function classifyAudioWithYAMNet(
         category = "SILENCE";
         confidence = 0.95;
         silenceCount++;
-      } else if (s % 3 === 2) {
-        category = "MUSIC";
-        confidence = 0.88;
-        musicCount++;
       } else {
+        // Honest RMS energy speech/audio activity estimation until local YAMNet ONNX model is loaded
         category = "SPEECH";
-        confidence = 0.92;
+        confidence = 0.80;
         speechCount++;
       }
 
@@ -88,39 +85,29 @@ export async function classifyAudioWithYAMNet(
     };
   } catch (err: any) {
     console.warn("[AUDIO_CLASSIFIER_ERROR]", err);
-    return generateFallbackAudioClassification(durationMs);
+    return getEmptyAudioClassificationResult(durationMs);
   }
 }
 
-function generateFallbackAudioClassification(durationMs: number): YAMNetClassificationResult {
+function getEmptyAudioClassificationResult(durationMs: number): YAMNetClassificationResult {
   const totalSeconds = Math.max(1, Math.ceil(durationMs / 1000));
   const timeline: AudioTimelineSegment[] = [];
 
   for (let s = 0; s < totalSeconds; s++) {
-    const startMs = s * 1000;
-    const endMs = Math.min(durationMs, (s + 1) * 1000);
-    
-    let category: AudioTimelineSegment["category"] = "SPEECH";
-    if (s < 1 || (s >= 6 && s <= 8)) {
-      category = "MUSIC";
-    } else if (s >= 11 && s <= 12) {
-      category = "SILENCE";
-    }
-
     timeline.push({
-      startMs,
-      endMs,
-      category,
-      confidence: 0.9,
-      decibelsApprox: category === "SILENCE" ? -48.2 : -18.5,
+      startMs: s * 1000,
+      endMs: Math.min(durationMs, (s + 1) * 1000),
+      category: "SILENCE",
+      confidence: 1.0,
+      decibelsApprox: -96.0,
     });
   }
 
   return {
     timeline,
-    speechRatio: 0.65,
-    musicRatio: 0.25,
-    silenceRatio: 0.1,
+    speechRatio: 0,
+    musicRatio: 0,
+    silenceRatio: 1.0,
     provider: "FALLBACK_AUDIO_CLASSIFIER",
   };
 }

@@ -235,9 +235,7 @@ def run_pipeline(job_id: str, payload: dict, update_status_callback) -> dict:
             shutil.copy2(source_video_path, local_video_path)
             print(f"[PIPELINE] Input video copied from local quarantine: {local_video_path}")
         else:
-            # Fallback for mock jobs without actual files
-            print(f"[PIPELINE WARNING] Source video not found locally at: {source_video_path}. Creating mock file.")
-            local_video_path.write_text("mock video data")
+            raise FileNotFoundError(f"Input video asset not found locally or in storage at: {source_video_path}")
 
     update_status_callback("VALIDATING")
     print("[PROGRESS] Validating video codecs and constraints (20%)")
@@ -289,18 +287,13 @@ def run_pipeline(job_id: str, payload: dict, update_status_callback) -> dict:
         print(f"[PIPELINE SUCCESS] Model execution completed. Shape: {preds.shape}")
         
     except Exception as e:
-        print(f"[PIPELINE INFO] Real TribeV2 execution skipped or failed: {e}")
-        print("[PIPELINE] Activating developer/simulator fallback...")
-        
-        # Developer fallback: check if we can reuse the precomputed Surya/sample predictions
+        print(f"[PIPELINE ERROR] Real TribeV2 model execution failed: {e}")
         precomputed_predictions_path = ROOT_DIR / "tribe_report" / "raw_predictions.npy"
         if precomputed_predictions_path.exists():
             print(f"[PIPELINE] Loading pre-calculated raw predictions from: {precomputed_predictions_path}")
             preds = np.load(precomputed_predictions_path)
         else:
-            print("[PIPELINE] Generating synthetic predictions tensor...")
-            # Generate dummy predictions for 20,484 vertices across 20 timesteps
-            preds = np.random.normal(0.0, 0.1, (20, 20484))
+            raise RuntimeError(f"TribeV2 GPU pipeline execution failed closed: {e}")
 
     # 4. Save raw transformer outputs (§9)
     update_status_callback("EXPORTING_RAW_OUTPUTS")

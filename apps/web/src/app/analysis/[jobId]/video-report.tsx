@@ -1,9 +1,60 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 type IconProps = React.SVGProps<SVGSVGElement>;
+
+function normalizeCategoryScores(rawCategoryScores: any): Record<string, { label: string; score: number; status: string; keyFactor?: string }> {
+  const result: Record<string, { label: string; score: number; status: string; keyFactor?: string }> = {};
+
+  const labelMap: Record<string, string> = {
+    HOOK_RETENTION: "Hook & Retention Structure",
+    MESSAGE_COMPREHENSION: "Message Comprehension",
+    NARRATIVE_CLARITY: "Narrative & Temporal Clarity",
+    BRAND_PRODUCT_INTEGRATION: "Brand & Product Integration",
+    OFFER_TRUST_CONVERSION: "Offer, Trust & Conversion Readiness",
+    AUDIO_VISUAL_CRAFT: "Audio-Visual Craft",
+    PLATFORM_NATIVE_FIT: "Platform & Native Fit",
+    COMPLIANCE_CLAIM_SAFETY: "Compliance & Claim Safety",
+
+    HOOKRETENTION: "Hook & Retention Structure",
+    MESSAGECOMPREHENSION: "Message Comprehension",
+    NARRATIVECLARITY: "Narrative & Temporal Clarity",
+    BRANDPRODUCTINTEGRATION: "Brand & Product Integration",
+    OFFERTRUSTCONVERSION: "Offer, Trust & Conversion Readiness",
+    AUDIOVISUALCRAFT: "Audio-Visual Craft",
+    PLATFORMNATIVEFIT: "Platform & Native Fit",
+    COMPLIANCESAFETY: "Compliance & Claim Safety",
+
+    HOOK: "Hook & Retention Structure",
+    COPYCLARITY: "Message Comprehension",
+    PACING: "Narrative & Temporal Clarity",
+    BRANDING: "Brand & Product Integration",
+    AUDIO: "Audio-Visual Craft",
+    COMPLIANCE: "Compliance & Claim Safety",
+  };
+
+  if (Array.isArray(rawCategoryScores)) {
+    for (const item of rawCategoryScores) {
+      const key = item.category || "UNKNOWN";
+      const label = item.breakdown?.label || labelMap[key] || key;
+      const score = typeof item.score === "number" ? item.score : 0;
+      const status = item.breakdown?.status || (score >= 85 ? "EXCELLENT" : score >= 70 ? "GOOD" : score >= 50 ? "NEEDS_IMPROVEMENT" : "POOR");
+      result[key] = { label, score, status, keyFactor: item.breakdown?.keyFactor };
+    }
+  } else if (rawCategoryScores && typeof rawCategoryScores === "object") {
+    for (const [key, val] of Object.entries(rawCategoryScores) as [string, any][]) {
+      const label = val.label || labelMap[key.toUpperCase()] || labelMap[key] || key;
+      const score = typeof val.score === "number" ? val.score : 0;
+      const status = val.status || (score >= 85 ? "EXCELLENT" : score >= 70 ? "GOOD" : score >= 50 ? "NEEDS_IMPROVEMENT" : "POOR");
+      result[key] = { label, score, status, keyFactor: val.keyFactor };
+    }
+  }
+
+  return result;
+}
 
 const IconPlay = (p: IconProps) => (
   <svg viewBox="0 0 24 24" fill="currentColor" {...p}><path d="M8 5v14l11-7z" /></svg>
@@ -44,8 +95,12 @@ const IconBarChart = (p: IconProps) => (
 const IconFileText = (p: IconProps) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
 );
+const IconAlertTriangle = (p: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+);
 
 export default function VideoReport({ job }: { job: any }) {
+  const router = useRouter();
   const reportArtifact = job.reports?.[0]?.summaryJson || {};
   const mediaUrl = job.inputObjectKey
     ? `/api/uploads/view?key=${encodeURIComponent(job.inputObjectKey)}`
@@ -58,67 +113,29 @@ export default function VideoReport({ job }: { job: any }) {
   const [isMuted, setIsMuted] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "timeline" | "findings" | "abVariants">("overview");
 
-  const overallScore = reportArtifact.overallScore ?? job.overallScore ?? 82;
-  const tier = reportArtifact.tier || (overallScore >= 85 ? "TOP_PERFORMER" : "STRONG_CONTENDER");
+  const jobStatus = job.status || "COMPLETED";
+  const isInProgress = jobStatus === "LEASED" || jobStatus === "RUNNING" || jobStatus === "CLAIMED" || jobStatus === "QUEUED";
+  const isFailed = jobStatus === "FAILED";
 
-  const categoryScores = reportArtifact.categoryScores || {
-    hook: { score: 88, label: "Hook & Opening Impact", status: "EXCELLENT", keyFactor: "Voiceover enters at 400ms." },
-    copyClarity: { score: 82, label: "Copy & Speech Clarity", status: "GOOD", keyFactor: "145 WPM voiceover pace." },
-    branding: { score: 65, label: "Brand Integration", status: "NEEDS_IMPROVEMENT", keyFactor: "Logo first revealed at 00:09.0." },
-    pacing: { score: 85, label: "Shot Cut Pacing", status: "EXCELLENT", keyFactor: "4 shot cuts with 2.8s scene hold." },
-    audio: { score: 90, label: "Audio Soundscape", status: "EXCELLENT", keyFactor: "65% speech to 25% music ratio." },
-  };
+  // Auto-poll if job is currently running in background
+  useEffect(() => {
+    if (isInProgress) {
+      const interval = setInterval(() => {
+        router.refresh();
+      }, 4000);
+      return () => clearInterval(interval);
+    }
+  }, [isInProgress, router]);
 
-  const transcriptWords = reportArtifact.transcript?.words || [
-    { word: "Are", startMs: 200, endMs: 400 },
-    { word: "you", startMs: 400, endMs: 600 },
-    { word: "tired", startMs: 600, endMs: 900 },
-    { word: "of", startMs: 900, endMs: 1050 },
-    { word: "slow", startMs: 1050, endMs: 1350 },
-    { word: "performance?", startMs: 1350, endMs: 1800 },
-    { word: "Experience", startMs: 2200, endMs: 2700 },
-    { word: "our", startMs: 2700, endMs: 2850 },
-    { word: "next", startMs: 2850, endMs: 3100 },
-    { word: "generation", startMs: 3100, endMs: 3600 },
-    { word: "solution.", startMs: 3600, endMs: 4100 },
-  ];
+  const overallScore = reportArtifact.overallScore ?? job.overallScore ?? null;
+  const tier = reportArtifact.tier || (overallScore !== null ? (overallScore >= 85 ? "TOP_PERFORMER" : overallScore >= 70 ? "STRONG_CONTENDER" : "AVERAGE") : "PROCESSING");
 
-  const textAnnotations = reportArtifact.intelligence?.textAnnotations || [
-    { text: "STOP SCROLLING - 50% OFF TODAY", startMs: 0, endMs: 3000 },
-    { text: "TRANSFORM YOUR DAILY ROUTINE", startMs: 3500, endMs: 8000 },
-  ];
-
-  const findings = reportArtifact.findings || [
-    {
-      type: "STRENGTH",
-      category: "HOOK_RETENTION",
-      title: "Immediate Audio Hook Entry",
-      description: "Voiceover begins within 400ms of video playback, preventing initial scroll past.",
-      timestampFormatted: "00:00.4",
-      timestampMs: 400,
-      impactPriority: "HIGH",
-    },
-    {
-      type: "WEAKNESS",
-      category: "BRAND_INTEGRATION",
-      title: "Late Brand Logo Reveal",
-      description: "Brand logo first appears at 00:09.0, missing the critical 0-3s impression window for unengaged viewers.",
-      recommendation: "Add persistent logo overlay in top-left safe zone from 00:00.5.",
-      timestampFormatted: "00:09.0",
-      timestampMs: 9000,
-      impactPriority: "HIGH",
-    },
-  ];
-
-  const actionPlan = reportArtifact.suggestedActionPlan || [
-    "Add persistent logo mark overlay at 00:00.5 to secure brand attribution in the first 3 seconds.",
-    "Add bold kinetic captions for the primary voiceover hook (00:00.0 to 00:04.0) to optimize for sound-off mobile viewers.",
-  ];
-
-  const abVariants = reportArtifact.recommendedAEditVariants || [
-    "Variant 1 (Fast-Paced Hook): Trim opening silent gap and add bold kinetic captions.",
-    "Variant 2 (Brand-First): Move end-card brand logo animation to opening 0.5s mark.",
-  ];
+  const categoryScores = normalizeCategoryScores(reportArtifact.categoryScores || job.categoryScores || {});
+  const transcriptWords = reportArtifact.transcript?.words || [];
+  const textAnnotations = reportArtifact.intelligence?.textAnnotations || [];
+  const findings = reportArtifact.findings || [];
+  const actionPlan = reportArtifact.suggestedActionPlan || [];
+  const abVariants = reportArtifact.recommendedAEditVariants || [];
 
   const togglePlay = () => {
     if (!videoRef.current) return;
@@ -189,7 +206,57 @@ export default function VideoReport({ job }: { job: any }) {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 pt-8 space-y-8">
-        {/* Top Banner Overview */}
+        {/* Analysis FAILED Error View */}
+        {isFailed && (
+          <div className="bg-rose-950/40 border border-rose-800/60 rounded-2xl p-8 shadow-2xl text-center space-y-4 max-w-2xl mx-auto my-12">
+            <div className="w-16 h-16 bg-rose-900/60 rounded-full flex items-center justify-center mx-auto text-rose-400 border border-rose-700/50">
+              <IconAlertTriangle className="w-8 h-8" />
+            </div>
+            <h2 className="text-2xl font-bold text-white">Video Creative Analysis Failed</h2>
+            <p className="text-sm text-slate-300 max-w-md mx-auto leading-relaxed">
+              The processing worker encountered an error while analyzing this video creative:
+            </p>
+            <div className="bg-slate-950 border border-rose-900/40 rounded-xl p-4 text-xs font-mono text-rose-300 text-left overflow-x-auto max-h-40">
+              {job.errorMessage || "An unexpected error occurred during execution."}
+            </div>
+            <div className="pt-2 flex justify-center space-x-4">
+              <Link
+                href="/analysis/new"
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition shadow-lg"
+              >
+                Start New Analysis
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Analysis IN_PROGRESS Live Polling View */}
+        {isInProgress && (
+          <div className="bg-indigo-950/30 border border-indigo-800/40 rounded-2xl p-8 shadow-2xl text-center space-y-6 max-w-2xl mx-auto my-12">
+            <div className="w-16 h-16 bg-indigo-900/60 rounded-full flex items-center justify-center mx-auto text-indigo-400 border border-indigo-700/50 animate-pulse">
+              <IconFilm className="w-8 h-8 animate-spin" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold text-white">Analyzing Video Creative...</h2>
+              <p className="text-sm text-slate-300">
+                Current Stage: <span className="font-semibold text-indigo-300">{job.currentStage || "PROCESSING"}</span> ({job.progressPercent || 15}%)
+              </p>
+            </div>
+            <div className="w-full bg-slate-900 h-3 rounded-full overflow-hidden border border-slate-800">
+              <div
+                className="bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 h-full transition-all duration-500"
+                style={{ width: `${Math.max(job.progressPercent || 10, 10)}%` }}
+              />
+            </div>
+            <p className="text-xs text-slate-400 animate-pulse">
+              Auto-refreshing analysis status every 4 seconds...
+            </p>
+          </div>
+        )}
+
+        {!isFailed && !isInProgress && (
+          <>
+            {/* Top Banner Overview */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-gradient-to-br from-[#111827] via-[#0F172A] to-[#1E1B4B]/30 rounded-2xl border border-indigo-900/40 p-6 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -421,44 +488,52 @@ export default function VideoReport({ job }: { job: any }) {
                 <IconFileText className="w-4 h-4 text-blue-400" /> Transcribed Speech Words (Whisper STT)
               </h4>
               <div className="flex flex-wrap gap-2 bg-slate-950 p-4 rounded-xl border border-slate-800/80">
-                {transcriptWords.map((w: any, idx: number) => {
-                  const isActive = currentTimeMs >= w.startMs && currentTimeMs <= w.endMs;
-                  return (
-                    <button
-                      key={idx}
-                      onClick={() => seekToMs(w.startMs)}
-                      className={`px-2.5 py-1 text-xs font-medium rounded-lg transition flex items-center gap-1 ${
-                        isActive
-                          ? "bg-indigo-600 text-white font-bold shadow-lg scale-105"
-                          : "bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white"
-                      }`}
-                    >
-                      <span>{w.word}</span>
-                      <span className="text-[9px] opacity-60 font-mono">{Math.round(w.startMs / 100) / 10}s</span>
-                    </button>
-                  );
-                })}
+                {transcriptWords.length > 0 ? (
+                  transcriptWords.map((w: any, idx: number) => {
+                    const isActive = currentTimeMs >= w.startMs && currentTimeMs <= w.endMs;
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => seekToMs(w.startMs)}
+                        className={`px-2.5 py-1 text-xs font-medium rounded-lg transition flex items-center gap-1 ${
+                          isActive
+                            ? "bg-indigo-600 text-white font-bold shadow-lg scale-105"
+                            : "bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white"
+                        }`}
+                      >
+                        <span>{w.word}</span>
+                        <span className="text-[9px] opacity-60 font-mono">{Math.round(w.startMs / 100) / 10}s</span>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <p className="text-xs text-slate-400 italic">No spoken speech transcribed or audio stream absent.</p>
+                )}
               </div>
             </div>
 
             {/* On-Screen OCR Text Overlays */}
             <div className="space-y-3 pt-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <IconFilm className="w-4 h-4 text-amber-400" /> Detected On-Screen Text Overlays (Google Video Intel)
+                <IconFilm className="w-4 h-4 text-amber-400" /> Detected On-Screen Text Overlays
               </h4>
               <div className="space-y-2">
-                {textAnnotations.map((t: any, idx: number) => (
-                  <div
-                    key={idx}
-                    onClick={() => seekToMs(t.startMs)}
-                    className="p-3 rounded-lg bg-slate-950 border border-slate-800/80 hover:border-indigo-700 transition cursor-pointer flex items-center justify-between"
-                  >
-                    <span className="text-xs font-semibold text-slate-200">{t.text}</span>
-                    <span className="text-[11px] font-mono text-indigo-400 bg-indigo-950 px-2 py-0.5 rounded border border-indigo-800">
-                      {formatMs(t.startMs)} – {formatMs(t.endMs)}
-                    </span>
-                  </div>
-                ))}
+                {textAnnotations.length > 0 ? (
+                  textAnnotations.map((t: any, idx: number) => (
+                    <div
+                      key={idx}
+                      onClick={() => seekToMs(t.startMs)}
+                      className="p-3 rounded-lg bg-slate-950 border border-slate-800/80 hover:border-indigo-700 transition cursor-pointer flex items-center justify-between"
+                    >
+                      <span className="text-xs font-semibold text-slate-200">{t.text}</span>
+                      <span className="text-[11px] font-mono text-indigo-400 bg-indigo-950 px-2 py-0.5 rounded border border-indigo-800">
+                        {formatMs(t.startMs)} – {formatMs(t.endMs)}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-slate-400 italic bg-slate-950 p-4 rounded-xl border border-slate-800/80">No on-screen text overlays detected.</p>
+                )}
               </div>
             </div>
           </div>
@@ -539,6 +614,8 @@ export default function VideoReport({ job }: { job: any }) {
               </div>
             </div>
           </div>
+        )}
+        </>
         )}
       </main>
     </div>

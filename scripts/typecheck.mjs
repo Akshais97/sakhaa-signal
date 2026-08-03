@@ -5,15 +5,12 @@ const requiredFiles = [
   "package.json",
   "pnpm-workspace.yaml",
   "turbo.json",
-  "apps/api/src/server.mjs",
-  "apps/web/src/server.mjs",
-  "workers/queue/src/processor.mjs",
-  "workers/python/fake_worker.py",
-  "scripts/install-pnpm-shim.mjs",
-  "packages/contracts/generated/v0-client.mjs",
-  "packages/config/src/storage.mjs",
-  "packages/db/prisma/schema.prisma",
-  "infra/docker/docker-compose.local.yml"
+  "apps/web/package.json",
+  "workers/cpu/src/index.ts",
+  "packages/engines/src/cv/google-video-intelligence.ts",
+  "packages/engines/src/audio/groq-whisper.ts",
+  "packages/engines/src/scoring/video-scorer.ts",
+  "packages/db/prisma/schema.prisma"
 ];
 
 const missing = requiredFiles.filter((file) => !existsSync(file));
