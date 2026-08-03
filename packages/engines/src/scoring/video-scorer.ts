@@ -30,42 +30,54 @@ export function scoreVideoCreative(
   audio: YAMNetClassificationResult
 ): VideoScoringResult {
   // 1. Hook Score (Weight: 35%)
-  // First word timestamp <= 800ms gives high audio entry score
-  const firstWordStartMs = transcript.words[0]?.startMs ?? 2000;
-  const audioHookScore = firstWordStartMs <= 600 ? 95 : firstWordStartMs <= 1200 ? 80 : 50;
+  const hasWords = transcript.words.length > 0;
+  const firstWordStartMs = hasWords ? transcript.words[0].startMs : undefined;
+  const audioHookScore = firstWordStartMs !== undefined 
+    ? (firstWordStartMs <= 600 ? 95 : firstWordStartMs <= 1200 ? 80 : 50)
+    : 0;
 
-  // Keyframes in 0-3s count
+  // Keyframes / visual activity in 0-3s
   const hookKeyframesCount = inspection.keyframes.filter((kf) => kf.timestampMs <= 3000).length;
-  const visualHookScore = Math.min(100, hookKeyframesCount * 22);
+  // Score visual hook based on keyframe presence and shot cuts without artificial multiplier boost
+  const visualHookScore = hookKeyframesCount > 0 ? (intelligence.shotCuts.length > 0 ? 85 : 50) : 0;
   const hookScoreValue = Math.round(audioHookScore * 0.5 + visualHookScore * 0.5);
 
   // 2. Copy Clarity Score (Weight: 20%)
   const wordCount = transcript.words.length;
-  const wpm = (wordCount / (inspection.durationMs / 1000)) * 60;
-  // Ideal ad voiceover WPM is 130 - 170
-  let copyScoreValue = 85;
-  if (wpm < 90 || wpm > 210) copyScoreValue = 65;
-  if (intelligence.textAnnotations.length > 0) copyScoreValue += 10;
-  copyScoreValue = Math.min(100, copyScoreValue);
+  let copyScoreValue = 0;
+  if (wordCount > 0) {
+    const wpm = (wordCount / Math.max(1, inspection.durationMs / 1000)) * 60;
+    copyScoreValue = (wpm >= 110 && wpm <= 180) ? 90 : (wpm >= 80 && wpm <= 220) ? 75 : 50;
+    if (intelligence.textAnnotations.length > 0) copyScoreValue = Math.min(100, copyScoreValue + 10);
+  } else if (intelligence.textAnnotations.length > 0) {
+    copyScoreValue = 65; // On-screen text without voiceover
+  }
 
   // 3. Branding Score (Weight: 20%)
-  const firstLogoMs = intelligence.logos[0]?.startMs ?? 99999;
-  let brandingScoreValue = 50;
-  if (firstLogoMs <= 3000) brandingScoreValue = 95;
-  else if (firstLogoMs <= 7000) brandingScoreValue = 75;
+  const hasLogos = intelligence.logos.length > 0;
+  const firstLogoMs = hasLogos ? intelligence.logos[0].startMs : undefined;
+  let brandingScoreValue = 0;
+  if (firstLogoMs !== undefined) {
+    if (firstLogoMs <= 3000) brandingScoreValue = 95;
+    else if (firstLogoMs <= 7000) brandingScoreValue = 75;
+    else brandingScoreValue = 50;
+  }
 
   // 4. Pacing Score (Weight: 15%)
   const shotCutCount = intelligence.shotCuts.length;
-  const avgShotDurationMs = inspection.durationMs / Math.max(1, shotCutCount);
-  let pacingScoreValue = 80;
-  if (avgShotDurationMs < 1500) pacingScoreValue = 90; // Dynamic fast-paced reel
-  else if (avgShotDurationMs > 6000) pacingScoreValue = 60; // Static frame risk
+  let pacingScoreValue = 0;
+  if (shotCutCount > 0) {
+    const avgShotDurationMs = inspection.durationMs / shotCutCount;
+    if (avgShotDurationMs >= 1200 && avgShotDurationMs <= 4500) pacingScoreValue = 90;
+    else if (avgShotDurationMs < 1200) pacingScoreValue = 75; // Very rapid cuts
+    else pacingScoreValue = 60; // Static scene holds
+  }
 
   // 5. Audio Quality Score (Weight: 10%)
-  let audioScoreValue = 75;
-  if (audio.speechRatio >= 0.4 && audio.speechRatio <= 0.85) audioScoreValue = 90;
-  if (audio.silenceRatio > 0.25) audioScoreValue -= 20;
-  audioScoreValue = Math.max(30, Math.min(100, audioScoreValue));
+  let audioScoreValue = 0;
+  if (inspection.hasAudio && audio.silenceRatio < 0.9) {
+    audioScoreValue = (audio.speechRatio >= 0.3 && audio.speechRatio <= 0.85) ? 90 : 65;
+  }
 
   // Overall Weighted Score
   const overallScore = Math.round(
@@ -90,28 +102,36 @@ export function scoreVideoCreative(
         label: "Hook & Opening Impact",
         weight: 0.35,
         status: getScoreStatus(hookScoreValue),
-        keyFactor: firstWordStartMs <= 600 ? "Voiceover starts within 600ms of playback." : "Delayed audio entry reduces opening hook rate.",
+        keyFactor: firstWordStartMs !== undefined
+          ? (firstWordStartMs <= 600 ? "Voiceover starts within 600ms of playback." : "Delayed audio entry reduces opening hook rate.")
+          : "No voiceover detected in opening sequence.",
       },
       copyClarity: {
         score: copyScoreValue,
         label: "Copy & Voiceover Clarity",
         weight: 0.2,
         status: getScoreStatus(copyScoreValue),
-        keyFactor: `${Math.round(wpm)} WPM pace with synchronized text overlays.`,
+        keyFactor: wordCount > 0
+          ? `${Math.round((wordCount / Math.max(1, inspection.durationMs / 1000)) * 60)} WPM pace with voiceover.`
+          : (intelligence.textAnnotations.length > 0 ? "On-screen text present without voiceover transcript." : "No copy or voiceover detected."),
       },
       branding: {
         score: brandingScoreValue,
         label: "Brand Integration",
         weight: 0.2,
         status: getScoreStatus(brandingScoreValue),
-        keyFactor: firstLogoMs <= 3000 ? "Brand logo appears in opening 3-second window." : "Logo reveal occurs after initial 3-second hook window.",
+        keyFactor: firstLogoMs !== undefined
+          ? (firstLogoMs <= 3000 ? "Brand logo appears in opening 3-second window." : "Logo reveal occurs after initial 3-second hook window.")
+          : "No verified brand logo detected.",
       },
       pacing: {
         score: pacingScoreValue,
         label: "Shot Cut Pacing",
         weight: 0.15,
         status: getScoreStatus(pacingScoreValue),
-        keyFactor: `${shotCutCount} shot cuts with ${Math.round(avgShotDurationMs / 1000 * 10) / 10}s average scene hold.`,
+        keyFactor: shotCutCount > 0
+          ? `${shotCutCount} shot cuts with ${Math.round((inspection.durationMs / shotCutCount) / 1000 * 10) / 10}s average scene hold.`
+          : "Continuous single-shot video without hard cuts.",
       },
       audio: {
         score: audioScoreValue,

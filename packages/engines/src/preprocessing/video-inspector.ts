@@ -27,6 +27,20 @@ export interface VideoInspectionResult {
   audioWavBuffer?: Buffer;
 }
 
+function getFfprobePath(): string {
+  if (process.env.FFPROBE_PATH && fs.existsSync(process.env.FFPROBE_PATH)) return process.env.FFPROBE_PATH;
+  const wingetBin = "C:\\Users\\askhai\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-8.1.2-full_build\\bin\\ffprobe.exe";
+  if (fs.existsSync(wingetBin)) return wingetBin;
+  return "ffprobe";
+}
+
+function getFfmpegPath(): string {
+  if (process.env.FFMPEG_PATH && fs.existsSync(process.env.FFMPEG_PATH)) return process.env.FFMPEG_PATH;
+  const wingetBin = "C:\\Users\\askhai\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-8.1.2-full_build\\bin\\ffmpeg.exe";
+  if (fs.existsSync(wingetBin)) return wingetBin;
+  return "ffmpeg";
+}
+
 export async function inspectVideo(videoBuffer: Buffer, fileName: string = "video.mp4"): Promise<VideoInspectionResult> {
   if (!videoBuffer || videoBuffer.byteLength === 0) {
     throw new Error("Invalid or empty video buffer provided for video creative analysis.");
@@ -41,7 +55,7 @@ export async function inspectVideo(videoBuffer: Buffer, fileName: string = "vide
 
     let probeData: any = null;
     try {
-      const { stdout } = await execFileAsync("ffprobe", [
+      const { stdout } = await execFileAsync(getFfprobePath(), [
         "-v",
         "quiet",
         "-print_format",
@@ -101,7 +115,7 @@ export async function inspectVideo(videoBuffer: Buffer, fileName: string = "vide
 
       const outputPath = path.join(tempDir, `frame_${i}.jpg`);
       try {
-        await execFileAsync("ffmpeg", [
+        await execFileAsync(getFfmpegPath(), [
           "-y",
           "-ss",
           target.sec.toString(),
@@ -132,7 +146,7 @@ export async function inspectVideo(videoBuffer: Buffer, fileName: string = "vide
     if (hasAudio) {
       const audioOutputPath = path.join(tempDir, "extracted_audio.wav");
       try {
-        await execFileAsync("ffmpeg", [
+        await execFileAsync(getFfmpegPath(), [
           "-y",
           "-i",
           inputVideoPath,

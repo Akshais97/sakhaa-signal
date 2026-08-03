@@ -20,6 +20,10 @@ import {
   classifyAudioWithYAMNet,
   scoreVideoCreative,
   generateVideoSynthesis,
+  TemporalEvidenceGraph,
+  computePPCScoring,
+  runBrainOrchestration,
+  detectSpeechIntervalsWithSileroVAD,
 } from "@sakhaa-signal/engines";
 import { readFile } from "node:fs/promises";
 
@@ -85,7 +89,7 @@ export async function processJob(job: any) {
       throw new Error(`Downloaded media file (${job.inputObjectKey}) is empty (0 bytes). Please re-upload a valid file.`);
     }
 
-    const isVideo = job.mediaType === "VIDEO" || job.mode === "VIDEO_STANDARD" || job.inputObjectKey.match(/\.(mp4|mov|webm)$/i);
+    const isVideo = job.mediaType === "VIDEO" || job.mode === "VIDEO_STANDARD" || job.mode === "FULL_WITH_TRIBEV2" || job.inputObjectKey.match(/\.(mp4|mov|webm)$/i);
 
     if (isVideo) {
       await processVideoJob(job, mediaBuffer);
@@ -242,24 +246,92 @@ async function processVideoJob(job: any, videoBuffer: Buffer) {
   const inspection = await inspectVideo(videoBuffer, path.basename(job.inputObjectKey));
   await updateStage(job.id, "PREPROCESSING", "SUCCEEDED", 40);
 
-  // 2. Video Intelligence & Speech/Audio Stage
+  // 2. Video Intelligence & Speech/Audio Evidence Stage
   await updateStage(job.id, "COMPUTER_VISION", "RUNNING", 50);
   const intelligence = await analyzeVideoWithIntelligence(videoBuffer, inspection.durationMs);
   const transcript = await transcribeAudioWithGroq(inspection.audioWavBuffer, inspection.durationMs);
   const audio = await classifyAudioWithYAMNet(inspection.audioWavBuffer, inspection.durationMs);
+  const vad = await detectSpeechIntervalsWithSileroVAD(inspection.audioWavBuffer, inspection.durationMs);
+
+  // Construct Temporal Evidence Graph
+  const evidenceGraph = new TemporalEvidenceGraph(inspection.durationMs);
+
+  // Populated evidence graph with speech, text, shot cut, and logo tracks
+  for (const w of transcript.words) {
+    evidenceGraph.addObservation({
+      id: `word_${w.startMs}`,
+      timestampMs: w.startMs,
+      endMs: w.endMs,
+      role: "TRANSCRIPT_WORD",
+      value: w.word,
+      confidence: 0.9,
+      provider: transcript.provider,
+    });
+  }
+
+  for (const t of intelligence.textAnnotations) {
+    evidenceGraph.addObservation({
+      id: `ocr_${t.startMs}`,
+      timestampMs: t.startMs,
+      endMs: t.endMs,
+      role: "TEXT_OVERLAY",
+      value: t.text,
+      confidence: t.confidence,
+      boundingBox: t.boundingBox,
+      provider: intelligence.provider,
+    });
+  }
+
+  for (const s of intelligence.shotCuts) {
+    evidenceGraph.addObservation({
+      id: `shot_${s.startMs}`,
+      timestampMs: s.startMs,
+      endMs: s.endMs,
+      role: "SHOT_CUT",
+      value: "SCENE_CUT",
+      confidence: 0.95,
+      provider: "SHOT_DETECTOR",
+    });
+  }
+
+  for (const l of intelligence.logos) {
+    evidenceGraph.addObservation({
+      id: `logo_${l.startMs}`,
+      timestampMs: l.startMs,
+      endMs: l.endMs,
+      role: "BRAND_LOGO",
+      value: l.entityDescription,
+      confidence: l.confidence,
+      provider: "BRAND_MATCHER",
+    });
+  }
+
   await updateStage(job.id, "COMPUTER_VISION", "SUCCEEDED", 65);
 
-  // 3. Rule & Scoring Stage
+  // 3. Rule & 8-Category PPC Scoring Stage
   await updateStage(job.id, "DETERMINISTIC_SCORING", "RUNNING", 80);
-  const scoring = scoreVideoCreative(inspection, intelligence, transcript, audio);
+  const ppcScoring = computePPCScoring(evidenceGraph);
+  const legacyScoring = scoreVideoCreative(inspection, intelligence, transcript, audio);
   
-  for (const [key, cs] of Object.entries(scoring.categoryScores)) {
+  const categoryEnumMap: Record<string, string> = {
+    hookRetention: "HOOK_RETENTION",
+    messageComprehension: "MESSAGE_COMPREHENSION",
+    narrativeClarity: "NARRATIVE_CLARITY",
+    brandProductIntegration: "BRAND_PRODUCT_INTEGRATION",
+    offerTrustConversion: "OFFER_TRUST_CONVERSION",
+    audioVisualCraft: "AUDIO_VISUAL_CRAFT",
+    platformNativeFit: "PLATFORM_NATIVE_FIT",
+    complianceClaimSafety: "COMPLIANCE_CLAIM_SAFETY",
+  };
+
+  for (const [key, cs] of Object.entries(ppcScoring.categories)) {
+    const enumCategory = categoryEnumMap[key] || key.toUpperCase();
     await prisma.categoryScore.create({
       data: {
         analysisJobId: job.id,
-        category: key.toUpperCase(),
+        category: enumCategory,
         score: cs.score,
-        confidence: 0.9,
+        confidence: cs.confidence,
         weight: cs.weight,
         breakdown: { keyFactor: cs.keyFactor, label: cs.label, status: cs.status } as any,
       },
@@ -267,27 +339,49 @@ async function processVideoJob(job: any, videoBuffer: Buffer) {
   }
   await updateStage(job.id, "DETERMINISTIC_SCORING", "SUCCEEDED", 88);
 
-  // 4. Video Synthesis Stage (GPT-5.6 Sol Timeline Analysis)
+  // 4. Video Synthesis Stage (GPT-5.6 Sol / Terra Brain Orchestration)
   await updateStage(job.id, "MULTIMODAL_GPT_SYNTHESIS", "RUNNING", 92);
-  const synthesis = await generateVideoSynthesis(
-    inspection,
-    intelligence,
-    transcript,
-    audio,
-    scoring,
-    { brandName: job.brandName, targetPlatform: job.targetPlatform, creativeGoal: job.creativeGoal }
-  );
+  
+  let brainDiagnosis: any = null;
+  let fallbackSynthesis: any = null;
 
-  for (const f of synthesis.findings) {
+  try {
+    brainDiagnosis = await runBrainOrchestration(evidenceGraph, {
+      brandName: job.brandName,
+      targetPlatform: job.targetPlatform,
+      creativeGoal: job.creativeGoal,
+    });
+  } catch (brainErr: any) {
+    console.warn("[SIGNAL_CPU_WORKER] Brain Orchestration non-fatal exception handled:", brainErr?.message || brainErr);
+  }
+
+  try {
+    fallbackSynthesis = await generateVideoSynthesis(
+      inspection,
+      intelligence,
+      transcript,
+      audio,
+      legacyScoring,
+      { brandName: job.brandName, targetPlatform: job.targetPlatform, creativeGoal: job.creativeGoal }
+    );
+  } catch (synErr: any) {
+    console.warn("[SIGNAL_CPU_WORKER] Fallback synthesis non-fatal exception handled:", synErr?.message || synErr);
+  }
+
+  const activeFindings = (brainDiagnosis?.findings && brainDiagnosis.findings.length > 0)
+    ? brainDiagnosis.findings
+    : (fallbackSynthesis?.findings || []);
+
+  for (const f of activeFindings) {
     await prisma.finding.create({
       data: {
         analysisJobId: job.id,
-        type: f.type,
-        category: f.category,
-        title: f.title,
-        description: f.description,
-        recommendation: f.recommendation,
-        impactPriority: f.impactPriority,
+        type: (f.type as any) || "WEAKNESS",
+        category: (f.category as any) || "HOOK_RETENTION",
+        title: f.title || (f as any).observation || "Finding",
+        description: (f as any).description || (f as any).observation || "",
+        recommendation: (f as any).recommendation?.change || (f as any).recommendation || undefined,
+        impactPriority: (f as any).impactPriority || (f as any).severity || "MEDIUM",
         evidenceIds: f.evidenceIds ? (f.evidenceIds as any) : undefined,
       },
     });
@@ -302,8 +396,8 @@ async function processVideoJob(job: any, videoBuffer: Buffer) {
     mode: job.mode || "VIDEO_STANDARD",
     status: "SUCCEEDED",
     mediaType: "VIDEO",
-    overallScore: scoring.overallScore,
-    tier: scoring.tier,
+    overallScore: ppcScoring.overallCreativeScore,
+    tier: ppcScoring.tier,
     inspection: {
       durationMs: inspection.durationMs,
       width: inspection.width,
@@ -314,6 +408,7 @@ async function processVideoJob(job: any, videoBuffer: Buffer) {
       hasAudio: inspection.hasAudio,
       keyframeTimestamps: inspection.keyframes.map((k) => k.timestampMs),
     },
+    evidenceGraph: evidenceGraph.exportGraphJSON(),
     intelligence: {
       textAnnotations: intelligence.textAnnotations,
       shotCuts: intelligence.shotCuts,
@@ -329,14 +424,19 @@ async function processVideoJob(job: any, videoBuffer: Buffer) {
       speechRatio: audio.speechRatio,
       musicRatio: audio.musicRatio,
       silenceRatio: audio.silenceRatio,
+      speechIntervals: vad.speechIntervals,
     },
-    categoryScores: scoring.categoryScores,
-    executiveSummary: synthesis.executiveSummary,
-    hookDropoffRisk: synthesis.hookDropoffRisk,
-    first3SecImpactSummary: synthesis.first3SecImpactSummary,
-    findings: synthesis.findings,
-    suggestedActionPlan: synthesis.suggestedActionPlan,
-    recommendedAEditVariants: synthesis.recommendedAEditVariants || [],
+    categoryScores: ppcScoring.categories,
+    executiveSummary: brainDiagnosis?.executiveSummary || fallbackSynthesis?.executiveSummary || "Video analysis complete.",
+    hookDropoffRisk: fallbackSynthesis?.hookDropoffRisk || "MEDIUM",
+    first3SecImpactSummary: brainDiagnosis?.first3SecImpactSummary || fallbackSynthesis?.first3SecImpactSummary || "Opening 0-3s evaluated.",
+    findings: activeFindings,
+    suggestedActionPlan: (brainDiagnosis?.suggestedActionPlan && brainDiagnosis.suggestedActionPlan.length > 0)
+      ? brainDiagnosis.suggestedActionPlan
+      : (fallbackSynthesis?.suggestedActionPlan || []),
+    recommendedAEditVariants: (brainDiagnosis?.recommendedAEditVariants && brainDiagnosis.recommendedAEditVariants.length > 0)
+      ? brainDiagnosis.recommendedAEditVariants
+      : (fallbackSynthesis?.recommendedAEditVariants || []),
     completedAt: new Date().toISOString(),
   };
 

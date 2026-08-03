@@ -65,8 +65,8 @@ export async function generateVideoSynthesis(
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey || apiKey === "local-openai-placeholder") {
-    console.log("[OPENAI_VIDEO_SYNTHESIS] API Key not present. Using deterministic rule-backed video synthesis.");
-    return generateFallbackVideoSynthesis(inspection, transcript, scoring);
+    console.log("[OPENAI_VIDEO_SYNTHESIS] API Key not present. Returning unavailable synthesis report.");
+    return getEmptyVideoSynthesisReport();
   }
 
   try {
@@ -119,74 +119,26 @@ export async function generateVideoSynthesis(
     const parsed = JSON.parse(content);
 
     return {
-      executiveSummary: parsed.executiveSummary || "Strong video creative with effective opening momentum.",
+      executiveSummary: parsed.executiveSummary || "Video creative evaluation complete.",
       hookDropoffRisk: parsed.hookDropoffRisk || (scoring.categoryScores.hook.score < 60 ? "HIGH" : "LOW"),
-      first3SecImpactSummary: parsed.first3SecImpactSummary || "Opening 0-3s features immediate visual motion and audio presence.",
-      findings: parsed.findings || generateFallbackVideoSynthesis(inspection, transcript, scoring).findings,
-      suggestedActionPlan: parsed.suggestedActionPlan || generateFallbackVideoSynthesis(inspection, transcript, scoring).suggestedActionPlan,
-      recommendedAEditVariants: [
-        "Hook Variant A: Accelerate shot cut at 00:01.5 to increase initial 3-second retention.",
-        "Brand Variant B: Position brand logo overlay persistently in upper safe zone from 00:00.5.",
-      ],
+      first3SecImpactSummary: parsed.first3SecImpactSummary || "Opening 0-3s evaluation based on observed media evidence.",
+      findings: parsed.findings || [],
+      suggestedActionPlan: parsed.suggestedActionPlan || [],
+      recommendedAEditVariants: parsed.recommendedAEditVariants || [],
     };
   } catch (err: any) {
     console.warn("[OPENAI_VIDEO_SYNTHESIS_ERROR]", err);
-    return generateFallbackVideoSynthesis(inspection, transcript, scoring);
+    return getEmptyVideoSynthesisReport();
   }
 }
 
-function generateFallbackVideoSynthesis(
-  inspection: VideoInspectionResult,
-  transcript: GroqWhisperResult,
-  scoring: VideoScoringResult
-): VideoSynthesisReport {
+function getEmptyVideoSynthesisReport(): VideoSynthesisReport {
   return {
-    executiveSummary: `Video creative exhibits strong initial momentum (${scoring.categoryScores.hook.score}/100 hook rating) with clear voiceover articulation across its ${Math.round(inspection.durationMs / 1000)}s duration.`,
-    hookDropoffRisk: scoring.categoryScores.hook.score < 65 ? "MODERATE" : "LOW",
-    first3SecImpactSummary: "Opening 0-3s visual hook introduces key problem statement with synchronized voiceover within the first 600ms.",
-    findings: [
-      {
-        type: "STRENGTH",
-        category: "HOOK_RETENTION",
-        title: "Immediate Audio-Visual Hook Engagement",
-        description: "Voiceover begins within 400ms of video playback, preventing initial scroll past.",
-        recommendation: "Maintain early audio entry in future video iterations.",
-        timestampMs: 400,
-        timestampFormatted: "00:00.4",
-        impactPriority: "HIGH",
-        evidenceIds: ["word_are_400ms", "HOOK_0S"],
-      },
-      {
-        type: "WEAKNESS",
-        category: "BRAND_INTEGRATION",
-        title: "Late Brand Logo Reveal",
-        description: "Brand logo first appears at 00:09.0, missing the critical 0-3s impression window for unengaged viewers.",
-        recommendation: "Add persistent 20% opacity brand mark overlay in top-left safe zone from 00:00.5.",
-        timestampMs: 9000,
-        timestampFormatted: "00:09.0",
-        impactPriority: "HIGH",
-        evidenceIds: ["obs_logo_main"],
-      },
-      {
-        type: "RECOMMENDATION",
-        category: "COPY_AUDIO_SYNC",
-        title: "Align On-Screen Subtitles with Voiceover",
-        description: "Transcribed words 'next generation solution' at 00:03.1 lack dynamic text animation overlay.",
-        recommendation: "Implement kinetic word-by-word subtitle highlight animation for mobile sound-off viewers.",
-        timestampMs: 3100,
-        timestampFormatted: "00:03.1",
-        impactPriority: "MEDIUM",
-        evidenceIds: ["word_solution_3600ms"],
-      },
-    ],
-    suggestedActionPlan: [
-      "Add persistent logo mark overlay at 00:00.5 to secure brand attribution in the first 3 seconds.",
-      "Add bold kinetic captions for the primary voiceover hook (00:00.0 to 00:04.0) to optimize for 80%+ sound-off mobile feed scrollers.",
-      "Trim mid-section video static frame between 00:06.0 and 00:07.5 to increase pacing velocity.",
-    ],
-    recommendedAEditVariants: [
-      "Variant 1 (Fast-Paced Hook): Trim opening silent gap and add bold kinetic captions.",
-      "Variant 2 (Brand-First): Move end-card brand logo animation to opening 0.5s mark.",
-    ],
+    executiveSummary: "OpenAI semantic synthesis engine unavailable. Technical deterministic measurements only.",
+    hookDropoffRisk: "MODERATE",
+    first3SecImpactSummary: "Multimodal semantic synthesis unavailable; review raw timeline observations below.",
+    findings: [],
+    suggestedActionPlan: [],
+    recommendedAEditVariants: [],
   };
 }

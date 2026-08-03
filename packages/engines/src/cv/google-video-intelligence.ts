@@ -38,8 +38,8 @@ export async function analyzeVideoWithIntelligence(
   const hasCredentials = process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GOOGLE_VIDEO_INTELLIGENCE_API_KEY;
 
   if (!hasCredentials) {
-    console.log("[GOOGLE_VIDEO_INTEL] Credentials not present. Using internal Video Intelligence engine.");
-    return generateFallbackVideoIntelligence(durationMs);
+    console.log("[GOOGLE_VIDEO_INTEL] Credentials not present. Returning empty annotations.");
+    return getEmptyVideoIntelligenceResult();
   }
 
   try {
@@ -100,62 +100,23 @@ export async function analyzeVideoWithIntelligence(
     });
 
     return {
-      textAnnotations: textAnnotations.length > 0 ? textAnnotations : generateFallbackVideoIntelligence(durationMs).textAnnotations,
-      shotCuts: shotCuts.length > 0 ? shotCuts : generateFallbackVideoIntelligence(durationMs).shotCuts,
+      textAnnotations,
+      shotCuts,
       logos,
       provider: "GOOGLE_VIDEO_INTELLIGENCE",
     };
   } catch (err: any) {
     console.warn("[GOOGLE_VIDEO_INTEL_ERROR]", err);
-    return generateFallbackVideoIntelligence(durationMs);
+    return getEmptyVideoIntelligenceResult();
   }
 }
 
-function generateFallbackVideoIntelligence(durationMs: number): VideoIntelligenceResult {
+function getEmptyVideoIntelligenceResult(): VideoIntelligenceResult {
   return {
-    textAnnotations: [
-      {
-        text: "STOP SCROLLING - NEW ARRIVAL 50% OFF",
-        startMs: 0,
-        endMs: 3000,
-        confidence: 0.96,
-        boundingBox: { x: 0.1, y: 0.15, width: 0.8, height: 0.12 },
-      },
-      {
-        text: "TRANSFORM YOUR DAILY ROUTINE TODAY",
-        startMs: 3500,
-        endMs: 8000,
-        confidence: 0.94,
-        boundingBox: { x: 0.15, y: 0.4, width: 0.7, height: 0.1 },
-      },
-      {
-        text: "LIMITED TIME SALE - CLAIM YOUR OFFER BELOW",
-        startMs: 9000,
-        endMs: durationMs,
-        confidence: 0.98,
-        boundingBox: { x: 0.2, y: 0.75, width: 0.6, height: 0.1 },
-      },
-    ],
-    shotCuts: [
-      { startMs: 0, endMs: 2500, durationMs: 2500 },
-      { startMs: 2500, endMs: 5800, durationMs: 3300 },
-      { startMs: 5800, endMs: 9200, durationMs: 3400 },
-      { startMs: 9200, endMs: durationMs, durationMs: durationMs - 9200 },
-    ],
-    logos: [
-      {
-        entityDescription: "Brand Logo",
-        startMs: 500,
-        endMs: 2500,
-        confidence: 0.92,
-      },
-      {
-        entityDescription: "Brand Logo",
-        startMs: 9000,
-        endMs: durationMs,
-        confidence: 0.96,
-      },
-    ],
+    textAnnotations: [],
+    shotCuts: [],
+    logos: [],
     provider: "FALLBACK_ENGINE",
   };
 }
+
