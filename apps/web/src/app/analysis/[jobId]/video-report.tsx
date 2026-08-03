@@ -6,6 +6,15 @@ import { useRouter } from "next/navigation";
 
 type IconProps = React.SVGProps<SVGSVGElement>;
 
+function renderTextValue(val: any): string {
+  if (!val) return "";
+  if (typeof val === "string") return val;
+  if (typeof val === "object") {
+    return val.recommendation || val.change || val.action || val.description || val.title || val.text || val.hypothesis || JSON.stringify(val);
+  }
+  return String(val);
+}
+
 function normalizeCategoryScores(rawCategoryScores: any): Record<string, { label: string; score: number; status: string; keyFactor?: string }> {
   const result: Record<string, { label: string; score: number; status: string; keyFactor?: string }> = {};
 
@@ -319,7 +328,7 @@ export default function VideoReport({ job }: { job: any }) {
                 </span>
                 <span className="text-xs text-slate-400 font-mono">Duration: {Math.round(durationMs / 1000)}s</span>
               </div>
-              <h2 className="text-3xl font-extrabold text-white tracking-tight leading-snug">
+              <h2 className="text-2xl font-bold text-slate-100 tracking-normal leading-relaxed">
                 Overall Video Creative Score
               </h2>
               <p className="text-sm text-slate-300 mt-2 leading-relaxed">
@@ -333,16 +342,16 @@ export default function VideoReport({ job }: { job: any }) {
               <div className="flex flex-col">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Total Score</span>
                 <div className="flex items-baseline space-x-1 mt-1">
-                  <span className="text-3xl font-black text-indigo-400">{overallScore}</span>
-                  <span className="text-xs text-slate-500 font-bold">/100</span>
+                  <span className="text-3xl font-bold text-indigo-400 font-mono tracking-tight">{overallScore}</span>
+                  <span className="text-xs text-slate-500 font-medium">/100</span>
                 </div>
               </div>
 
               <div className="flex flex-col">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Hook Rating</span>
                 <div className="flex items-baseline space-x-1 mt-1">
-                  <span className="text-2xl font-bold text-emerald-400">{categoryScores.hook?.score || 88}</span>
-                  <span className="text-xs text-slate-500 font-bold">/100</span>
+                  <span className="text-2xl font-semibold text-emerald-400 font-mono">{categoryScores.hook?.score || 88}</span>
+                  <span className="text-xs text-slate-500 font-medium">/100</span>
                 </div>
               </div>
 
@@ -445,8 +454,8 @@ export default function VideoReport({ job }: { job: any }) {
                     </span>
                   </div>
                   <div className="flex items-baseline space-x-2 my-2">
-                    <span className="text-3xl font-extrabold text-white">{cat.score}</span>
-                    <span className="text-xs text-slate-500 font-bold">/100</span>
+                    <span className="text-2xl font-semibold text-slate-100 font-mono">{cat.score}</span>
+                    <span className="text-xs text-slate-500 font-medium">/100</span>
                   </div>
                   <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden mb-3">
                     <div
@@ -570,16 +579,41 @@ export default function VideoReport({ job }: { job: any }) {
                       </button>
                     )}
                   </div>
-                  <h4 className="text-base font-bold text-white">{f.title}</h4>
-                  <p className="text-xs text-slate-300 leading-relaxed">{f.description}</p>
+                  <h4 className="text-sm font-semibold text-slate-100">{f.title}</h4>
+                  <p className="text-xs text-slate-300 leading-relaxed">{renderTextValue(f.description)}</p>
                   {f.recommendation && (
                     <div className="mt-2 bg-indigo-950/60 border border-indigo-800/40 rounded-lg p-3 text-xs text-indigo-200">
-                      <strong className="text-indigo-400">Recommendation:</strong> {f.recommendation}
+                      <strong className="text-indigo-400">Recommendation:</strong> {renderTextValue(f.recommendation)}
                     </div>
                   )}
                 </div>
               </div>
             ))}
+
+            {/* Quick Cards — Rapid Video Edits */}
+            <div className="mt-8 space-y-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                <IconZap className="w-4 h-4 text-amber-400" /> Recommended Quick Fix Cards
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {findings.filter((f: any) => f.type === "WEAKNESS" || f.recommendation).slice(0, 3).map((win: any, i: number) => (
+                  <div key={i} className="bg-slate-900/90 border border-slate-800 hover:border-indigo-800/60 rounded-xl p-4 shadow-lg space-y-2.5 transition">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-mono font-bold text-indigo-300 bg-indigo-950 px-2 py-0.5 rounded uppercase">
+                        Quick Fix #{i + 1}
+                      </span>
+                      <span className="text-[10px] font-mono text-emerald-400 font-semibold bg-emerald-950/80 px-2 py-0.5 rounded">
+                        {win.impactPriority || "HIGH IMPACT"}
+                      </span>
+                    </div>
+                    <h5 className="text-xs font-semibold text-slate-100 line-clamp-1">{win.title}</h5>
+                    <p className="text-[11px] text-slate-300 leading-relaxed line-clamp-3">
+                      {renderTextValue(win.recommendation || win.description)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
@@ -588,13 +622,13 @@ export default function VideoReport({ job }: { job: any }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Action Plan */}
             <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-6 shadow-xl space-y-4">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
                 <IconCheckCircle className="w-5 h-5 text-emerald-400" /> Actionable Video Edit Plan
               </h3>
               <ol className="space-y-3 text-xs text-slate-300 list-decimal list-inside leading-relaxed">
-                {actionPlan.map((step: string, i: number) => (
+                {actionPlan.map((step: any, i: number) => (
                   <li key={i} className="bg-slate-950 p-3 rounded-lg border border-slate-800/80">
-                    {step}
+                    {renderTextValue(step)}
                   </li>
                 ))}
               </ol>
@@ -602,13 +636,13 @@ export default function VideoReport({ job }: { job: any }) {
 
             {/* A/B Edit Variants */}
             <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-6 shadow-xl space-y-4">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
                 <IconFlame className="w-5 h-5 text-amber-400" /> Recommended A/B Creative Variants
               </h3>
               <div className="space-y-3">
-                {abVariants.map((variant: string, i: number) => (
+                {abVariants.map((variant: any, i: number) => (
                   <div key={i} className="bg-indigo-950/40 border border-indigo-800/40 p-3.5 rounded-lg text-xs text-indigo-200">
-                    {variant}
+                    {renderTextValue(variant)}
                   </div>
                 ))}
               </div>
