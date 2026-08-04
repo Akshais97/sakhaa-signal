@@ -2,12 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import prisma from "@/lib/db";
+import { getAuthenticatedSession } from "@/lib/auth";
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ job_id: string }> }
 ) {
   try {
+    const { user, workspace: ws } = await getAuthenticatedSession();
+    if (!user || !ws) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { job_id } = await params;
 
     const job = await prisma.job.findUnique({
@@ -16,6 +22,10 @@ export async function POST(
 
     if (!job) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    }
+
+    if (job.workspaceId !== ws.id && !user.isPlatformAdmin) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     // Extract contentType from body, default to application/octet-stream

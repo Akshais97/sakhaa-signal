@@ -4,6 +4,9 @@ import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
+import prisma from "@/lib/db";
+import { getAuthenticatedSession } from "@/lib/auth";
+import { resolvePathSafely } from "@/lib/storageUtils";
 
 export async function GET(req: NextRequest) {
   try {
@@ -12,6 +15,26 @@ export async function GET(req: NextRequest) {
 
     if (!objectKey) {
       return NextResponse.json({ error: "Missing required query parameter: key" }, { status: 400 });
+    }
+
+    // Workspace authorization check for non-demo keys
+    const isDemoKey = objectKey.includes("job_demo_") || objectKey.startsWith("samples/");
+    if (!isDemoKey) {
+      const { user, workspace: ws } = await getAuthenticatedSession();
+      if (!user || !ws) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+
+      const parts = objectKey.split("/");
+      if (parts.length >= 2 && (parts[0] === "uploads" || parts[0] === "exports")) {
+        const jobId = parts[1];
+        const job = await prisma.job.findUnique({
+          where: { id: jobId },
+        });
+        if (job && job.workspaceId !== ws.id && !user.isPlatformAdmin) {
+          return NextResponse.json({ error: "Access denied" }, { status: 403 });
+        }
+      }
     }
 
     const provider = process.env.OBJECT_STORAGE_PROVIDER || "local-filesystem";
@@ -65,8 +88,8 @@ export async function GET(req: NextRequest) {
       ];
 
       for (const storageRoot of storageRoots) {
-        const localFilePath = path.join(storageRoot, objectKey);
-        if (existsSync(localFilePath)) {
+        const localFilePath = resolvePathSafely(storageRoot, objectKey);
+        if (localFilePath && existsSync(localFilePath)) {
           fileBuffer = await readFile(localFilePath);
           break;
         }
@@ -85,7 +108,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Media file not found" }, { status: 404 });
     }
 
-    return new NextResponse(fileBuffer, {
+    return new NextResponse(new Uint8Array(fileBuffer), {
       status: 200,
       headers: {
         "Content-Type": contentType,

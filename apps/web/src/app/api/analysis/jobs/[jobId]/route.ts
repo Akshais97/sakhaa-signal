@@ -8,6 +8,9 @@ export async function GET(
 ) {
   try {
     const { user, workspace: ws } = await getAuthenticatedSession();
+    if (!user || !ws) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const { jobId } = await params;
 
     const job = await prisma.analysisJob.findUnique({

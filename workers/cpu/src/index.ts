@@ -27,7 +27,20 @@ import {
 } from "@sakhaa-signal/engines";
 import { readFile } from "node:fs/promises";
 
-const prisma = new PrismaClient();
+function getWorkerDbUrl() {
+  const url = process.env.DATABASE_URL || "";
+  if (!url) return undefined;
+  if (url.includes("connection_limit=")) {
+    return url.replace(/connection_limit=\d+/, "connection_limit=5");
+  }
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}connection_limit=5&pool_timeout=20`;
+}
+
+const workerDbUrl = getWorkerDbUrl();
+const prisma = new PrismaClient({
+  ...(workerDbUrl ? { datasources: { db: { url: workerDbUrl } } } : {}),
+});
 const storage = new StorageAdapter();
 const WORKER_ID = `cpu-worker-${os.hostname()}-${process.pid}`;
 const POLL_INTERVAL_MS = 3000;

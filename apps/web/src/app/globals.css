@@ -89,11 +89,9 @@
     --accent-creative: var(--p-ember-500);
     --accent-creative-hover: var(--p-ember-600);
 
-    /* Fonts: Clash Display (display) + Satoshi (UI/body) loaded via Fontshare
-       in layout.tsx. JetBrains Mono is self-hosted via next/font and owns the
-       --font-mono variable, so it is not redeclared here. */
-    --font-display: "Clash Display", "Satoshi", ui-sans-serif, system-ui, sans-serif;
-    --font-text: "Satoshi", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+    /* Premium Fonts: Outfit (Header Display) + Inter (UI/Body) via next/font */
+    --font-display: var(--font-display), "Outfit", ui-sans-serif, system-ui, sans-serif;
+    --font-text: var(--font-text), "Inter", ui-sans-serif, system-ui, sans-serif;
   }
 
   /* Dark mode overrides (Recommended default for authenticated creative space) */
@@ -202,20 +200,26 @@
   border-style: dashed;
 }
 
-/* Quiet, standard scrollbar — kept subtle, not a reinvented affordance. */
+/* Visible Custom Scrollbar for Drawer & Menus */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #46433C #121110;
+}
 .custom-scrollbar::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
+  background: #121110;
   border-radius: 4px;
 }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #46433C;
+  border-radius: 4px;
+  border: 1px solid #2E2B26;
+}
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: var(--text-tertiary);
+  background: #7C70F6;
 }
 
 /* Circular Gauge: one calm transition, conveys value, not decoration. */

@@ -5,7 +5,11 @@ import { getAuthenticatedSession } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   try {
-    const { workspace: ws } = await getAuthenticatedSession();
+    const { user, workspace: ws } = await getAuthenticatedSession();
+    if (!user || !ws) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const jobs = await prisma.analysisJob.findMany({
       where: { workspaceId: ws.id },
       orderBy: { createdAt: "desc" },
@@ -23,7 +27,11 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { workspace: ws } = await getAuthenticatedSession();
+    const { user, workspace: ws } = await getAuthenticatedSession();
+    if (!user || !ws) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await req.json();
     const {
       mode,
@@ -58,52 +66,53 @@ export async function POST(req: NextRequest) {
           "REPORT_PUBLISHING",
         ]
       : [
-          "DOWNLOAD_AND_VALIDATE",
-          "FFMPEG_EXTRACTION",
-          "COMPUTER_VISION",
-          "GROQ_WHISPER_TRANSCRIPTION",
-          "YAMNET_CLASSIFICATION",
-          "RULE_EVALUATION",
-          "DETERMINISTIC_SCORING",
-          "MULTIMODAL_GPT_SYNTHESIS",
-          "REPORT_PUBLISHING",
+          "RECEIVED",
+          "DOWNLOADING_INPUT",
+          "VALIDATING",
+          "PREPROCESSING",
+          "ENCODING_VIDEO",
+          "ENCODING_AUDIO",
+          "ENCODING_TEXT",
+          "BUILDING_FUSED_INPUT",
+          "RUNNING_TRANSFORMER",
+          "EXPORTING_RAW_OUTPUTS",
+          "MAPPING_HCP",
+          "SCORING_MARKETING_OUTCOMES",
+          "RUNNING_LLM_EXPLANATION",
+          "PACKAGING_RESULTS",
+          "COMPLETED",
         ];
 
     const job = await prisma.analysisJob.create({
       data: {
         id: jobId,
         workspaceId: ws.id,
-        mode,
-        status: "QUEUED",
-        currentStage: "QUEUED",
-        progressPercent: 0,
+        mode: mode || "STATIC_STANDARD",
+        status: "CREATED",
+        mediaType: mediaType || "IMAGE",
         inputArtifactId,
         inputObjectKey,
-        mediaType,
-        title: title || `${brandName || "Ad"} Creative Analysis`,
-        brandName,
-        targetPlatform,
-        placement,
-        creativeGoal,
-        selectedModel: selectedModel || null,
+        title: title || "Untitled Creative Analysis",
+        brandName: brandName || null,
+        targetPlatform: targetPlatform || null,
+        placement: placement || null,
+        creativeGoal: creativeGoal || null,
+        selectedModel: selectedModel || "tribev2-v1",
         stages: {
-          create: stagesList.map((stageName, idx) => ({
+          create: stagesList.map((stageName) => ({
             stageName,
-            stageOrder: idx + 1,
-            status: "QUEUED",
+            status: "CREATED" as const,
           })),
         },
       },
       include: {
-        stages: {
-          orderBy: { stageOrder: "asc" },
-        },
+        stages: true,
       },
     });
 
     return NextResponse.json({ job });
   } catch (error: any) {
-    console.error("[CREATE_ANALYSIS_JOB_ERROR]", error);
+    console.error("[POST_ANALYSIS_JOB_ERROR]", error);
     return NextResponse.json({ error: "Failed to create analysis job", details: error.message }, { status: 500 });
   }
 }

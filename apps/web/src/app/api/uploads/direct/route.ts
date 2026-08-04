@@ -3,15 +3,46 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import prisma from "@/lib/db";
+import { getAuthenticatedSession } from "@/lib/auth";
+import {
+  MAX_UPLOAD_SIZE_BYTES,
+  resolvePathSafely,
+  validateMediaMagicBytes,
+  calculateSha256,
+} from "@/lib/storageUtils";
 
 export async function PUT(req: NextRequest) {
   try {
+    const { user, workspace: ws } = await getAuthenticatedSession();
+    if (!user || !ws) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = req.nextUrl;
     const objectKey = searchParams.get("key");
     const artifactId = searchParams.get("artifactId");
 
     if (!objectKey) {
       return NextResponse.json({ error: "Missing required query parameter: key" }, { status: 400 });
+    }
+
+    const parts = objectKey.split("/");
+    if (parts.length >= 2 && (parts[0] === "uploads" || parts[0] === "exports")) {
+      const jobId = parts[1];
+      const job = await prisma.job.findUnique({
+        where: { id: jobId },
+      });
+      if (job && job.workspaceId !== ws.id && !user.isPlatformAdmin) {
+        return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      }
+    }
+
+    const contentLength = Number(req.headers.get("content-length") || "0");
+    if (contentLength > MAX_UPLOAD_SIZE_BYTES) {
+      return NextResponse.json(
+        { error: `Upload payload (${(contentLength / (1024 * 1024)).toFixed(1)}MB) exceeds maximum limit of 500MB` },
+        { status: 413 }
+      );
     }
 
     const contentType = req.headers.get("content-type") || "application/octet-stream";
@@ -21,6 +52,33 @@ export async function PUT(req: NextRequest) {
     if (buffer.byteLength === 0) {
       return NextResponse.json({ error: "Uploaded file payload is empty (0 bytes)" }, { status: 400 });
     }
+
+    if (buffer.byteLength > MAX_UPLOAD_SIZE_BYTES) {
+      return NextResponse.json(
+        { error: `File payload size (${(buffer.byteLength / (1024 * 1024)).toFixed(1)}MB) exceeds maximum allowed limit of 500MB` },
+        { status: 413 }
+      );
+    }
+
+    // 1. Content Security Validation: Verify real file format magic bytes
+    const magicValidation = validateMediaMagicBytes(buffer);
+    if (!magicValidation.isValid) {
+      if (artifactId) {
+        try {
+          await prisma.artifact.update({
+            where: { id: artifactId },
+            data: { status: "REJECTED" },
+          });
+        } catch (e) {}
+      }
+      return NextResponse.json(
+        { error: "Security validation failed: Invalid or unrecognized media file header" },
+        { status: 400 }
+      );
+    }
+
+    // 2. Cryptographic Integrity: Compute real SHA-256 hash
+    const realSha256 = calculateSha256(buffer);
 
     const provider = process.env.OBJECT_STORAGE_PROVIDER || "local-filesystem";
     let uploadedToS3 = false;
@@ -37,9 +95,10 @@ export async function PUT(req: NextRequest) {
           forcePathStyle: true,
         });
 
-        const bucket = process.env.B2_BUCKET_QUARANTINE || process.env.B2_BUCKET_CLEAN_MEDIA || "v0-local-quarantine";
+        // Use quarantine bucket dockerize-sakhaa-forge-quarantine
+        const quarantineBucket = process.env.B2_BUCKET_QUARANTINE || "dockerize-sakhaa-forge-quarantine";
         const command = new PutObjectCommand({
-          Bucket: bucket,
+          Bucket: quarantineBucket,
           Key: objectKey,
           ContentType: contentType,
           Body: buffer,
@@ -47,9 +106,9 @@ export async function PUT(req: NextRequest) {
 
         await s3Client.send(command);
         uploadedToS3 = true;
-        console.log(`[UPLOAD_PROXY_S3] Successfully uploaded ${buffer.byteLength} bytes to S3/B2 key: ${objectKey}`);
+        console.log(`[UPLOAD_PROXY_S3] Successfully uploaded ${buffer.byteLength} bytes to quarantine bucket (${quarantineBucket}) key: ${objectKey}`);
       } catch (err: any) {
-        console.warn(`[UPLOAD_PROXY_WARNING] S3/B2 upload failed (${err.message}). Saving to local storage simulator fallback...`);
+        console.warn(`[UPLOAD_PROXY_WARNING] S3/B2 upload failed (${err.message}). Saving to local quarantine storage simulator fallback...`);
       }
     }
 
@@ -60,11 +119,14 @@ export async function PUT(req: NextRequest) {
     ];
 
     for (const storageRoot of storageRoots) {
-      const filePath = path.join(storageRoot, objectKey);
-      await mkdir(path.dirname(filePath), { recursive: true });
-      await writeFile(filePath, buffer);
+      const filePath = resolvePathSafely(storageRoot, objectKey);
+      if (filePath) {
+        await mkdir(path.dirname(filePath), { recursive: true });
+        await writeFile(filePath, buffer);
+      }
     }
 
+    // 3. Update DB Artifact record with real SHA-256 hash and verified CLEAN status
     if (artifactId) {
       try {
         await prisma.artifact.update({
@@ -72,6 +134,7 @@ export async function PUT(req: NextRequest) {
           data: {
             status: "CLEAN",
             byteSize: buffer.byteLength,
+            sha256: realSha256,
           },
         });
       } catch (e) {}
@@ -81,7 +144,9 @@ export async function PUT(req: NextRequest) {
       success: true,
       objectKey,
       byteSize: buffer.byteLength,
-      storage: uploadedToS3 ? "S3/B2" : "LOCAL_SIMULATOR",
+      sha256: realSha256,
+      detectedType: magicValidation.detectedType,
+      storage: uploadedToS3 ? "S3/B2_QUARANTINE" : "LOCAL_QUARANTINE_SIMULATOR",
     });
   } catch (error: any) {
     console.error("[UPLOAD_PROXY_ERROR]", error);
