@@ -69,7 +69,11 @@ export async function analyzeStaticCreativeWithOpenAI(
   const selectedModel = (modelName && modelName.trim()) ? modelName.trim() : (process.env.OPENAI_MODEL || "gpt-4o");
   console.log(`[OPENAI_VISION] Initiating Sakhaa Signal creative extraction & diagnosis with model: ${selectedModel}`);
 
-  const openai = new OpenAI({ apiKey });
+  const configuredTimeout = Number(process.env.OPENAI_VISION_TIMEOUT_MS || 120_000);
+  const timeout = Number.isFinite(configuredTimeout) && configuredTimeout > 0
+    ? configuredTimeout
+    : 120_000;
+  const openai = new OpenAI({ apiKey, timeout, maxRetries: 1 });
   const mimeType = inspection.format === "png" ? "image/png" : "image/jpeg";
   const base64Data = imageBuffer.toString("base64");
 
@@ -124,6 +128,11 @@ export async function analyzeStaticCreativeWithOpenAI(
 
     if (!isReasoningModel) {
       extractionOptions.temperature = 0.15;
+    } else {
+      // GPT-5.6 defaults to medium reasoning. Static extraction is a
+      // latency-sensitive structured-output task, so make the intended
+      // no-reasoning behavior explicit.
+      extractionOptions.reasoning_effort = "none";
     }
 
     const response = await openai.chat.completions.create(extractionOptions);
@@ -153,6 +162,8 @@ export async function analyzeStaticCreativeWithOpenAI(
 
     if (!isReasoningModel) {
       synthesisOptions.temperature = 0.35;
+    } else {
+      synthesisOptions.reasoning_effort = "none";
     }
 
     let parsedSynthesis = parsedExtraction;

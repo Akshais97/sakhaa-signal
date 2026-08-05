@@ -185,7 +185,7 @@ export default function VideoReport({ job }: { job: any }) {
       <header className="sticky top-0 z-40 bg-[#0D1322]/90 backdrop-blur-md border-b border-slate-800/80 px-6 py-4 flex items-center justify-between shadow-xl">
         <div className="flex items-center space-x-4">
           <Link
-            href="/analysis"
+            href="/dashboard"
             className="text-xs font-semibold text-slate-400 hover:text-indigo-400 transition-colors flex items-center gap-1.5"
           >
             ← Back to Dashboard

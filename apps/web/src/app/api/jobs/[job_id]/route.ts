@@ -4,6 +4,7 @@ import fs from "fs/promises";
 import prisma from "@/lib/db";
 import { JobStatus } from "@sakhaa-forge/db";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getAuthenticatedSession } from "@/lib/auth";
 
 async function fetchLogsFromS3(jobId: string): Promise<string[]> {
   const storageProvider = process.env.OBJECT_STORAGE_PROVIDER;
@@ -46,6 +47,11 @@ export async function GET(
   { params }: { params: Promise<{ job_id: string }> }
 ) {
   try {
+    const { user, workspace: ws } = await getAuthenticatedSession();
+    if (!user || !ws) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { job_id } = await params;
 
     let job = await prisma.job.findUnique({
@@ -55,6 +61,10 @@ export async function GET(
 
     if (!job) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    }
+
+    if (job.workspaceId !== ws.id && !user.isPlatformAdmin) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     const gpuWorkerUrl = process.env.GPU_WORKER_URL || "http://localhost:8080";

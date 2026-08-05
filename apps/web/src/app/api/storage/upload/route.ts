@@ -1,9 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
+import prisma from "@/lib/db";
+import { getAuthenticatedSession } from "@/lib/auth";
+import { resolvePathSafely } from "@/lib/storageUtils";
 
 export async function PUT(req: NextRequest) {
   try {
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json(
+        { error: "Local filesystem storage endpoint is disabled in production environment. Use presigned S3/B2 storage upload URLs." },
+        { status: 403 }
+      );
+    }
+
+    const { user, workspace: ws } = await getAuthenticatedSession();
+    if (!user || !ws) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = req.nextUrl;
     const key = searchParams.get("key");
 
@@ -11,9 +26,25 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Missing storage key query param" }, { status: 400 });
     }
 
-    // Determine the local filesystem destination
+    const parts = key.split("/");
+    if (parts.length >= 2 && (parts[0] === "uploads" || parts[0] === "exports")) {
+      const jobId = parts[1];
+      const job = await prisma.job.findUnique({
+        where: { id: jobId },
+      });
+      if (job && job.workspaceId !== ws.id && !user.isPlatformAdmin) {
+        return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      }
+    }
+
+    // Determine the local filesystem destination with containment check
     const storageRoot = path.resolve(process.cwd(), ".local", "storage", "v0-local-quarantine");
-    const filePath = path.join(storageRoot, key);
+    const filePath = resolvePathSafely(storageRoot, key);
+
+    if (!filePath) {
+      return NextResponse.json({ error: "Invalid key or path traversal attempt detected" }, { status: 400 });
+    }
+
     const dirPath = path.dirname(filePath);
 
     // Ensure containing directory exists

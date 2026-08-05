@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 // Manually parse .env from workspace root or current directory
 const envCandidates = [
   resolve(process.cwd(), ".env"),
+  resolve(process.cwd(), "apps/web/.env"),
   resolve(process.cwd(), "../../.env"),
   resolve(process.cwd(), "../.env"),
 ];

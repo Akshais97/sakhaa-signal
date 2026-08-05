@@ -3,14 +3,34 @@ import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import prisma from "@/lib/db";
+import { getAuthenticatedSession } from "@/lib/auth";
+import { resolvePathSafely } from "@/lib/storageUtils";
 
 export async function GET(req: NextRequest) {
   try {
+    const { user, workspace: ws } = await getAuthenticatedSession();
+    if (!user || !ws) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = req.nextUrl;
     const key = searchParams.get("key");
 
     if (!key) {
       return NextResponse.json({ error: "Missing storage key query param" }, { status: 400 });
+    }
+
+    // Extract jobId from key pattern if present (e.g. exports/{jobId}/... or uploads/{jobId}/...)
+    const parts = key.split("/");
+    if (parts.length >= 2 && (parts[0] === "exports" || parts[0] === "uploads")) {
+      const jobId = parts[1];
+      const job = await prisma.job.findUnique({
+        where: { id: jobId },
+      });
+      if (job && job.workspaceId !== ws.id && !user.isPlatformAdmin) {
+        return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      }
     }
 
     const storageProvider = process.env.OBJECT_STORAGE_PROVIDER || "local-filesystem";
@@ -54,7 +74,11 @@ export async function GET(req: NextRequest) {
       // Local development fallback: direct file read from local simulator storage
       console.log(`[STORAGE API] Using local-filesystem download fallback for key: ${key}`);
       const storageRoot = path.resolve(process.cwd(), ".local", "storage", "v0-local-artifacts");
-      const filePath = path.join(storageRoot, key);
+      const filePath = resolvePathSafely(storageRoot, key);
+
+      if (!filePath) {
+        return NextResponse.json({ error: "Invalid key or path traversal attempt detected" }, { status: 400 });
+      }
 
       try {
         const fileBuffer = await readFile(filePath);

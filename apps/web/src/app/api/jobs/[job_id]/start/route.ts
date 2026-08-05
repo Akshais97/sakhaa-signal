@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
+import { getAuthenticatedSession } from "@/lib/auth";
 
 export async function POST(
   req: NextRequest,
@@ -7,6 +8,10 @@ export async function POST(
 ) {
   const { job_id } = await params;
   try {
+    const { user, workspace: ws } = await getAuthenticatedSession();
+    if (!user || !ws) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const job = await prisma.job.findUnique({
       where: { id: job_id },
@@ -14,6 +19,10 @@ export async function POST(
 
     if (!job) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    }
+
+    if (job.workspaceId !== ws.id && !user.isPlatformAdmin) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     // Prepare GPU payload and append dynamic callback url

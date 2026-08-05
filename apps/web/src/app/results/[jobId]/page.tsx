@@ -116,7 +116,7 @@ const MOCK_JOB_DATA: Job = {
 };
 
 const MOCK_SCORES: MarketingScores = {
-  model_version: "TribeV2-TF-v2.0.4",
+  model_version: "Brain-Neuromarketing-Signal-Simulation-v2.0.4",
   outcomes: {
     "Engagement": {
       score_0_100: 33.5,
@@ -251,7 +251,7 @@ SAKHAA SIGNAL NEUROMARKETING BRAND SCORER REPORT
 ====================================================
 Job ID: ${job?.id || "Demo_Job"}
 Project Name: ${job?.input.project_name}
-Model version: ${scores?.model_version || "TribeV2"}
+Model version: ${scores?.model_version || "Brain Neuromarketing Signal Simulation"}
 Timestamp: ${new Date().toISOString()}
 
 OUTCOMES SUMMARY:

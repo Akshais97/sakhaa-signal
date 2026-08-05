@@ -6,7 +6,11 @@ import { getAuthenticatedSession } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   try {
-    const { workspace: ws } = await getAuthenticatedSession();
+    const { user, workspace: ws } = await getAuthenticatedSession();
+    if (!user || !ws) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const jobs = await prisma.job.findMany({
       where: {
         workspaceId: ws.id,
@@ -23,8 +27,7 @@ export async function GET(req: NextRequest) {
       return j;
     });
 
-    const res = NextResponse.json({ jobs: mappedJobs, workspace: ws });
-    // Set cookie if not set
+    const res = NextResponse.json({ jobs: mappedJobs, workspace: ws, user });
     const cookieStore = await cookies();
     if (!cookieStore.get("workspace-id") || cookieStore.get("workspace-id")?.value !== ws.id) {
       res.cookies.set("workspace-id", ws.id, { path: "/" });
@@ -40,7 +43,11 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { workspace: ws } = await getAuthenticatedSession();
+    const { user, workspace: ws } = await getAuthenticatedSession();
+    if (!user || !ws) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await req.json();
 
     const {
@@ -58,17 +65,19 @@ export async function POST(req: NextRequest) {
 
     if (!project_name || !video_name || !video_object_key) {
       return NextResponse.json(
-        { error: "Missing required fields: project_name, video_name, video_object_key" },
+        { error: "Missing required parameters: project_name, video_name, video_object_key" },
         { status: 400 }
       );
     }
 
-    const job_id = crypto.randomUUID();
-    const jobPayload = {
-      job_id,
-      video_object_key,
+    const jobId = `job_${crypto.randomUUID().replace(/-/g, "").substring(0, 12)}`;
+
+    const payload = {
+      job_id: jobId,
+      workspace_id: ws.id,
       project_name,
       video_name,
+      video_object_key,
       cluster_mode,
       output_mode,
       run_llm_explanation,
@@ -78,21 +87,17 @@ export async function POST(req: NextRequest) {
       creative_objective
     };
 
-    // Calculate sha256 input hash for idempotency validation
-    const inputHash = crypto
-      .createHash("sha256")
-      .update(JSON.stringify(jobPayload))
-      .digest("hex");
+    const inputHash = crypto.createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 
     const job = await prisma.job.create({
       data: {
-        id: job_id,
+        id: jobId,
         workspaceId: ws.id,
         type: "TRIBEV2_AD_SCORER",
-        resourceClass: "gpu",
+        resourceClass: "GPU_WORKER",
         status: "CREATED",
         inputHash,
-        input: jobPayload,
+        input: payload as any,
       },
     });
 

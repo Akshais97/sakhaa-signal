@@ -2,16 +2,47 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "node:crypto";
 import prisma from "@/lib/db";
 import { getAuthenticatedSession } from "@/lib/auth";
+import { MAX_UPLOAD_SIZE_BYTES } from "@/lib/storageUtils";
 
 export async function POST(req: NextRequest) {
   try {
-    const { workspace: ws } = await getAuthenticatedSession();
+    const { user, workspace: ws } = await getAuthenticatedSession();
+    if (!user || !ws) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await req.json();
     const { fileName, contentType, byteSize, mediaType } = body;
 
     if (!fileName || !contentType || !byteSize || !mediaType) {
       return NextResponse.json(
         { error: "Missing required upload parameters: fileName, contentType, byteSize, mediaType" },
+        { status: 400 }
+      );
+    }
+
+    const sizeInBytes = Number(byteSize);
+    if (isNaN(sizeInBytes) || sizeInBytes <= 0) {
+      return NextResponse.json({ error: "Invalid upload payload size" }, { status: 400 });
+    }
+
+    if (sizeInBytes > MAX_UPLOAD_SIZE_BYTES) {
+      return NextResponse.json(
+        {
+          error: `File size (${(sizeInBytes / (1024 * 1024)).toFixed(1)}MB) exceeds maximum allowed limit of ${(
+            MAX_UPLOAD_SIZE_BYTES / (1024 * 1024)
+          ).toFixed(0)}MB`,
+        },
+        { status: 413 }
+      );
+    }
+
+    // Validate allowed file extensions
+    const ext = fileName.split(".").pop()?.toLowerCase() || "";
+    const allowedExtensions = ["mp4", "mov", "webm", "avi", "png", "jpg", "jpeg", "webp"];
+    if (!allowedExtensions.includes(ext)) {
+      return NextResponse.json(
+        { error: `Unsupported file extension '.${ext}'. Allowed formats: ${allowedExtensions.join(", ")}` },
         { status: 400 }
       );
     }

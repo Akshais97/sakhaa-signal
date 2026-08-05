@@ -269,7 +269,7 @@ def run_pipeline(job_id: str, payload: dict, update_status_callback) -> dict:
         update_status_callback("BUILDING_FUSED_INPUT")
         time.sleep(0.2)
         update_status_callback("RUNNING_TRANSFORMER")
-        print("[PROGRESS] Executing TribeV2 Fusion Attention model (70%)")
+        print("[PROGRESS] Executing Brain Neuromarketing Signal Simulation Fusion Attention model (70%)")
 
         # Attempt loading real model from pretrained cache
         from tribev2 import TribeModel

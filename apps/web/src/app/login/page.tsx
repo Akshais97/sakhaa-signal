@@ -96,7 +96,7 @@ export default function LoginPage() {
         <div className="text-xs text-graphite-tertiary text-center leading-relaxed font-sans">
           By signing in, you agree to the workspace terms of service.
           <br />
-          System powered by FAIR Meta TribeV2 digital brain mapping models.
+          System powered by Brain Neuromarketing Signal Simulation digital brain mapping models.
         </div>
       </div>
     </main>
