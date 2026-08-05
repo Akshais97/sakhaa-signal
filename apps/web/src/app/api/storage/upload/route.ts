@@ -7,6 +7,13 @@ import { resolvePathSafely } from "@/lib/storageUtils";
 
 export async function PUT(req: NextRequest) {
   try {
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json(
+        { error: "Local filesystem storage endpoint is disabled in production environment. Use presigned S3/B2 storage upload URLs." },
+        { status: 403 }
+      );
+    }
+
     const { user, workspace: ws } = await getAuthenticatedSession();
     if (!user || !ws) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

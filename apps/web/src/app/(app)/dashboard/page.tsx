@@ -127,9 +127,17 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchJobs();
+  }, []);
+
+  const hasActiveJobs = jobs.some(
+    (job) => !["COMPLETED", "FAILED", "CANCELLED"].includes(job.status)
+  );
+
+  useEffect(() => {
+    if (!hasActiveJobs) return;
     const interval = setInterval(fetchJobs, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [hasActiveJobs]);
 
   const handleSelectJob = async (jobId: string) => {
     setSelectedJobId(jobId);
@@ -261,7 +269,7 @@ export default function DashboardPage() {
       "ENCODING_AUDIO": "Encoding auditory features (Wav2Vec)",
       "ENCODING_TEXT": "Transcribing and encoding transcript (BERT)",
       "BUILDING_FUSED_INPUT": "Assembling fused sequence tensor",
-      "RUNNING_TRANSFORMER": "Executing TribeV2 transformer model",
+      "RUNNING_TRANSFORMER": "Executing Brain Neuromarketing Signal Simulation transformer model",
       "EXPORTING_RAW_OUTPUTS": "Exporting activations (predictions.npy)",
       "DECODING_HEADS": "Decoding outcome heads and parcellating",
       "MAPPING_HCP": "Mapping predictions to HCP-MMP1 cortical areas",
@@ -349,10 +357,16 @@ export default function DashboardPage() {
               </button>
 
               <button
-                onClick={() => setIsWizardOpen(true)}
-                className="px-3.5 py-2.5 text-sm font-semibold rounded-md bg-graphite-sunken text-graphite-secondary hover:text-white border border-graphite-subtle hover:border-graphite-strong transition-colors flex items-center gap-2"
+                type="button"
+                disabled
+                aria-disabled="true"
+                title="Brain Neuromarketing Signal Simulation scorer is coming soon"
+                className="px-3.5 py-2.5 text-sm font-semibold rounded-md bg-graphite-sunken/80 text-graphite-tertiary border border-graphite-subtle transition-all flex items-center gap-2 relative overflow-hidden opacity-55 cursor-not-allowed"
               >
-                Legacy TribeV2 scorer
+                <span>Brain Neuromarketing Signal Simulation scorer</span>
+                <span className="px-2 py-0.5 text-[10px] font-mono font-bold rounded-full bg-[#7C70F6]/15 text-[#7C70F6] border border-[#7C70F6]/40 shadow-[0_0_12px_rgba(124,112,246,0.35)] animate-pulse">
+                  Coming Soon
+                </span>
               </button>
             </div>
           </div>
@@ -410,7 +424,7 @@ export default function DashboardPage() {
                 Upload your advertisement video to run transformer model inference and outcomes mapping.
               </p>
               <button
-                onClick={() => setIsWizardOpen(true)}
+                onClick={() => setIsSignalWizardOpen(true)}
                 className="mt-5 px-4 py-2 text-sm font-semibold rounded-md bg-graphite-sunken border border-graphite-subtle text-graphite-secondary hover:text-white hover:border-graphite-primary transition-colors"
               >
                 Create job
@@ -787,7 +801,7 @@ export default function DashboardPage() {
                       {[
                         { key: "PREPROCESSING", label: "Modality audio/video extraction" },
                         { key: "ENCODING_VIDEO", label: "Dense embeddings encoders" },
-                        { key: "RUNNING_TRANSFORMER", label: "TribeV2 fusion attention" },
+                        { key: "RUNNING_TRANSFORMER", label: "Brain Neuromarketing Signal Simulation fusion attention" },
                         { key: "MAPPING_HCP", label: "KDTree HCP-MMP1 mapping" },
                         { key: "COMPLETED", label: "ZIP export and output" },
                       ].map((step, idx) => {
@@ -839,7 +853,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex gap-2">
                   <span className="font-mono text-iris-primary">03.</span>
-                  <span className="text-graphite-secondary leading-relaxed">Run the TribeV2 attention transformer model on CUDA hosts.</span>
+                  <span className="text-graphite-secondary leading-relaxed">Run the Brain Neuromarketing Signal Simulation attention transformer model on CUDA hosts.</span>
                 </div>
                 <div className="flex gap-2">
                   <span className="font-mono text-iris-primary">04.</span>

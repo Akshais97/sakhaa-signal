@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "node:crypto";
 import prisma from "@/lib/db";
 import { getAuthenticatedSession } from "@/lib/auth";
+import { getAnalysisStages, INITIAL_ANALYSIS_JOB_STATE } from "@/lib/analysis-job-config";
 
 export async function GET(req: NextRequest) {
   try {
@@ -55,40 +56,14 @@ export async function POST(req: NextRequest) {
 
     const jobId = crypto.randomUUID();
 
-    const stagesList = mode === "STATIC_STANDARD"
-      ? [
-          "DOWNLOAD_AND_VALIDATE",
-          "PREPROCESSING",
-          "COMPUTER_VISION",
-          "RULE_EVALUATION",
-          "DETERMINISTIC_SCORING",
-          "MULTIMODAL_GPT_SYNTHESIS",
-          "REPORT_PUBLISHING",
-        ]
-      : [
-          "RECEIVED",
-          "DOWNLOADING_INPUT",
-          "VALIDATING",
-          "PREPROCESSING",
-          "ENCODING_VIDEO",
-          "ENCODING_AUDIO",
-          "ENCODING_TEXT",
-          "BUILDING_FUSED_INPUT",
-          "RUNNING_TRANSFORMER",
-          "EXPORTING_RAW_OUTPUTS",
-          "MAPPING_HCP",
-          "SCORING_MARKETING_OUTCOMES",
-          "RUNNING_LLM_EXPLANATION",
-          "PACKAGING_RESULTS",
-          "COMPLETED",
-        ];
+    const stagesList = getAnalysisStages(mode);
 
     const job = await prisma.analysisJob.create({
       data: {
         id: jobId,
         workspaceId: ws.id,
         mode: mode || "STATIC_STANDARD",
-        status: "CREATED",
+        ...INITIAL_ANALYSIS_JOB_STATE,
         mediaType: mediaType || "IMAGE",
         inputArtifactId,
         inputObjectKey,
@@ -97,11 +72,12 @@ export async function POST(req: NextRequest) {
         targetPlatform: targetPlatform || null,
         placement: placement || null,
         creativeGoal: creativeGoal || null,
-        selectedModel: selectedModel || "tribev2-v1",
+        selectedModel: selectedModel || "gpt-4o",
         stages: {
-          create: stagesList.map((stageName) => ({
+          create: stagesList.map((stageName, index) => ({
             stageName,
-            status: "CREATED" as const,
+            stageOrder: index + 1,
+            status: "QUEUED" as const,
           })),
         },
       },

@@ -55,6 +55,8 @@ async function claimEligibleJob() {
   const eligible = await prisma.analysisJob.findFirst({
     where: {
       OR: [
+        // Recover analysis jobs created during the 2026-08 queue regression.
+        { status: "CREATED" },
         { status: "QUEUED" },
         { status: "LEASED", leaseExpiresAt: { lt: now } },
       ],

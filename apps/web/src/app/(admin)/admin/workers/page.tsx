@@ -38,7 +38,7 @@ export default async function AdminWorkersPage() {
             </span>
             <span className="text-xs font-mono text-[#8A867C]">TYPE: GPU_WORKER</span>
           </div>
-          <h3 className="text-lg font-bold text-[#F3F2EF]">TribeV2 CUDA GPU Fast-Inference Node</h3>
+          <h3 className="text-lg font-bold text-[#F3F2EF]">Brain Neuromarketing Signal Simulation CUDA GPU Fast-Inference Node</h3>
           <p className="text-xs text-[#B4B0A7] leading-relaxed">
             Processes 3D-ResNet visual, Wav2Vec audio, and BERT text embeddings to run fused transformer model inference.
           </p>

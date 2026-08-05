@@ -67,28 +67,49 @@ export const getAuthenticatedSession = cache(async () => {
       });
     }
 
-    // Also ensure local-dev-user exists in Prisma users table if dev bypass is active
-    await prisma.user.upsert({
+    // Provision once; avoid rewriting the same user on every dashboard poll.
+    const devUser = await prisma.user.findUnique({
       where: { id: "local-dev-user" },
-      update: { email: "dev@local.internal", displayName: "Local Dev User" },
-      create: { id: "local-dev-user", email: "dev@local.internal", displayName: "Local Dev User" },
+      select: { email: true, displayName: true },
     });
+    if (!devUser) {
+      await prisma.user.upsert({
+        where: { id: "local-dev-user" },
+        update: {},
+        create: { id: "local-dev-user", email: "dev@local.internal", displayName: "Local Dev User" },
+      });
+    } else if (devUser.email !== "dev@local.internal" || devUser.displayName !== "Local Dev User") {
+      await prisma.user.update({
+        where: { id: "local-dev-user" },
+        data: { email: "dev@local.internal", displayName: "Local Dev User" },
+      });
+    }
 
     return { user: { id: "local-dev-user", email: "dev@local.internal", isPlatformAdmin: true }, workspace: ws };
   }
 
-  // Ensure real authenticated Supabase user exists in Prisma users table BEFORE querying memberships
-  await prisma.user.upsert({
+  // Ensure the auth identity exists locally, but only write when it changed.
+  const incomingEmail = user.email || null;
+  const existingUser = await prisma.user.findUnique({
     where: { id: user.id },
-    update: {
-      email: user.email || null,
-    },
-    create: {
-      id: user.id,
-      email: user.email || null,
-      displayName: user.user_metadata?.full_name || user.email?.split("@")[0] || null,
-    },
+    select: { email: true },
   });
+  if (!existingUser) {
+    await prisma.user.upsert({
+      where: { id: user.id },
+      update: {},
+      create: {
+        id: user.id,
+        email: incomingEmail,
+        displayName: user.user_metadata?.full_name || user.email?.split("@")[0] || null,
+      },
+    });
+  } else if (existingUser.email !== incomingEmail) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { email: incomingEmail },
+    });
+  }
 
   const emailLower = user.email?.toLowerCase() || "";
   const roleConfig = EMAIL_ROLE_MAPPING[emailLower];
@@ -96,11 +117,21 @@ export const getAuthenticatedSession = cache(async () => {
   // Auto-provision PlatformAdmin if email is marked as platform admin
   let platformAdminRecord = null;
   if (roleConfig?.isPlatformAdmin) {
-    platformAdminRecord = await prisma.platformAdmin.upsert({
+    platformAdminRecord = await prisma.platformAdmin.findUnique({
       where: { userId: user.id },
-      update: { role: "SUPER_ADMIN", status: "ACTIVE" },
-      create: { userId: user.id, role: "SUPER_ADMIN", status: "ACTIVE" },
     });
+    if (!platformAdminRecord) {
+      platformAdminRecord = await prisma.platformAdmin.upsert({
+        where: { userId: user.id },
+        update: {},
+        create: { userId: user.id, role: "SUPER_ADMIN", status: "ACTIVE" },
+      });
+    } else if (platformAdminRecord.role !== "SUPER_ADMIN" || platformAdminRecord.status !== "ACTIVE") {
+      platformAdminRecord = await prisma.platformAdmin.update({
+        where: { userId: user.id },
+        data: { role: "SUPER_ADMIN", status: "ACTIVE" },
+      });
+    }
   } else {
     platformAdminRecord = await prisma.platformAdmin.findUnique({
       where: { userId: user.id },

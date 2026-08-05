@@ -165,13 +165,18 @@ export default function JobWizard({ onJobCreated, onClose }: JobWizardProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B0A09]/80 p-4">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#0B0A09]/80 backdrop-blur-sm p-4">
       <div className="w-full max-w-lg bg-[#161512]/95 border border-[#2E2B26] rounded-md p-6 flex flex-col gap-6 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)] relative overflow-hidden">
         {/* Header */}
         <div className="flex justify-between items-center border-b border-[#2E2B26] pb-4">
           <div>
-            <h3 className="text-lg font-semibold tracking-tight text-[#F3F2EF]">Create scoring job</h3>
-            <p className="text-sm text-graphite-secondary mt-0.5">Upload advertisement video for neuromarketing analysis</p>
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold tracking-tight text-[#F3F2EF]">Brain Neuromarketing Signal Simulation</h3>
+              <span className="px-2 py-0.5 text-[10px] font-mono font-bold rounded-full bg-[#7C70F6]/20 text-[#7C70F6] border border-[#7C70F6]/40 shadow-[0_0_12px_rgba(124,112,246,0.35)] animate-pulse">
+                Coming Soon
+              </span>
+            </div>
+            <p className="text-sm text-graphite-secondary mt-0.5">Deep CUDA GPU transformer & cortical parcellation engine</p>
           </div>
           <button
             onClick={onClose}
@@ -181,6 +186,13 @@ export default function JobWizard({ onJobCreated, onClose }: JobWizardProps) {
           >
             <IconClose className="w-5 h-5" />
           </button>
+        </div>
+
+        <div className="p-3.5 rounded-md bg-[#7C70F6]/10 border border-[#7C70F6]/30 text-xs text-[#D4D1CA] leading-relaxed flex items-start gap-2.5">
+          <span className="w-2 h-2 rounded-full bg-[#7C70F6] animate-ping shrink-0 mt-1"></span>
+          <span>
+            <strong className="text-white">GPU Fast-Inference Node Notice:</strong> Dedicated CUDA GPU cluster parcellation worker is currently in standby configuration. Please use <strong>New Creative Analysis</strong> for standard pre-flight scoring.
+          </span>
         </div>
 
         <form onSubmit={handleStartSubmit} className="flex flex-col gap-5 text-sm">

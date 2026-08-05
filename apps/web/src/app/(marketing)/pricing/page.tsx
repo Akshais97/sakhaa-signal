@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata = {
   title: "Pricing & Plans — Sakhaa Signal",
-  description: "Simple, credit-based pricing plans for static creative scoring and TribeV2 GPU ad intelligence.",
+  description: "Simple, credit-based pricing plans for static creative scoring and Brain Neuromarketing Signal Simulation GPU ad intelligence.",
 };
 
 export default function PricingPage() {
@@ -70,7 +70,7 @@ export default function PricingPage() {
               <div className="mt-6 border-t border-[#2E2B26] pt-6 space-y-3 text-sm text-[#D4D1CA]">
                 <p className="font-semibold text-white">Includes Everything in Starter plus:</p>
                 <p>✓ 100 Analysis Credits per month</p>
-                <p>✓ TribeV2 Transformer GPU Inference</p>
+                <p>✓ Brain Neuromarketing Signal Simulation Transformer GPU Inference</p>
                 <p>✓ 17 Cognitive Cluster Activations (A–Q)</p>
                 <p>✓ LLM Executive Summary Reports</p>
                 <p>✓ 5 Workspaces, 10 Team Seats</p>

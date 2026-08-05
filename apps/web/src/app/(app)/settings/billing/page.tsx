@@ -64,7 +64,7 @@ export default function BillingSettingsPage() {
           <div className="p-6 rounded-xl bg-[#121110] border border-[#2E2B26]">
             <span className="text-xs font-mono text-[#8A867C]">REMAINING CREDITS</span>
             <div className="text-3xl font-extrabold text-[#7C70F6] mt-2 font-mono">{credits.toFixed(1)}</div>
-            <p className="text-xs text-[#B4B0A7] mt-1">1 static analysis = 1 credit &bull; 1 video TribeV2 = 3 credits</p>
+            <p className="text-xs text-[#B4B0A7] mt-1">1 static analysis = 1 credit &bull; 1 video Brain Neuromarketing Signal Simulation = 3 credits</p>
           </div>
 
           <div className="p-6 rounded-xl bg-[#121110] border border-[#2E2B26]">

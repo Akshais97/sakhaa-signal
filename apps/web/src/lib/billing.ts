@@ -31,7 +31,7 @@ export const PLANS: Record<string, PlanConfig> = {
     maxWorkspaces: 5,
     maxMembers: 10,
     features: [
-      "Full TribeV2 Transformer GPU Inference",
+      "Full Brain Neuromarketing Signal Simulation Transformer GPU Inference",
       "17 Cognitive Cluster Activations (A–Q)",
       "LLM Executive Summary Reports",
       "100 Credits / month",
@@ -46,7 +46,7 @@ export const PLANS: Record<string, PlanConfig> = {
     maxWorkspaces: 99,
     maxMembers: 99,
     features: [
-      "High Volume TribeV2 GPU Processing",
+      "High Volume Brain Neuromarketing Signal Simulation GPU Processing",
       "Training Bundle ML Export (.pt / .npy)",
       "350 Credits / month",
       "Unlimited Workspaces & Members",

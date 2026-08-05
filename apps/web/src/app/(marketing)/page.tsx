@@ -60,7 +60,7 @@ export default function LandingPage() {
       <section className="relative z-10 pt-20 pb-24 px-6 max-w-7xl mx-auto text-center">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#1A1815] border border-[#2E2B26] text-xs font-mono text-[#B4B0A7] mb-8">
           <span className="w-2 h-2 rounded-full bg-[#5BD08C] animate-pulse"></span>
-          <span>TribeV2 Multimodal AI Encoder & HCP-MMP1 Parcellation Ready</span>
+          <span>Brain Neuromarketing Signal Simulation Multimodal AI Encoder & HCP-MMP1 Parcellation Ready</span>
         </div>
 
         <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-[#F3F2EF] max-w-5xl mx-auto leading-none">
@@ -188,7 +188,7 @@ export default function LandingPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
               </div>
-              <h3 className="text-2xl font-bold text-[#F3F2EF]">Full Video TribeV2 Engine</h3>
+              <h3 className="text-2xl font-bold text-[#F3F2EF]">Full Video Brain Neuromarketing Signal Simulation Engine</h3>
               <p className="text-[#B4B0A7] mt-3 leading-relaxed">
                 Extract audio tracks, video frames, and transcripts to fuse 3D-ResNet, Wav2Vec, and BERT embeddings into a unified attention transformer sequence tensor.
               </p>
@@ -293,7 +293,7 @@ export default function LandingPage() {
               <p className="text-sm text-[#B4B0A7] mt-3">Designed for performance agencies and scaling ad accounts.</p>
               <ul className="mt-6 space-y-3 text-sm text-[#D4D1CA]">
                 <li>✓ 100 Analysis Credits / mo</li>
-                <li>✓ Full TribeV2 GPU Parcellation Engine</li>
+                <li>✓ Full Brain Neuromarketing Signal Simulation GPU Parcellation Engine</li>
                 <li>✓ 17 Cluster (A–Q) Activations</li>
                 <li>✓ LLM Executive Explanation Reports</li>
                 <li>✓ 5 Workspaces & 10 Members</li>

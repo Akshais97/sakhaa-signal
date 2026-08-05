@@ -38,7 +38,7 @@ async def lifespan(app: FastAPI):
             print("[STARTUP] HF_TOKEN found in environment. Model downloader initialized.")
     yield
 
-app = FastAPI(title="TribeV2 GPU Worker API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Brain Neuromarketing Signal Simulation GPU Worker API", version="1.0.0", lifespan=lifespan)
 
 # Security
 security = HTTPBearer()

@@ -58,7 +58,7 @@ export default function UsagePage() {
 
             <div className="p-4 flex items-center justify-between text-sm">
               <div>
-                <p className="font-semibold text-[#F3F2EF]">TribeV2 Video Creative Analysis Reservation</p>
+                <p className="font-semibold text-[#F3F2EF]">Brain Neuromarketing Signal Simulation Video Creative Analysis Reservation</p>
                 <p className="text-xs text-[#8A867C] font-mono">Job execution reservation</p>
               </div>
               <span className="text-sm font-mono font-bold text-[#FF6B3D]">-3.0 Credits</span>

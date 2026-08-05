@@ -39,7 +39,7 @@ const Spinner = ({ className = "" }: { className?: string }) => (
 const MODE_OPTIONS = [
   { key: "STATIC_STANDARD", label: "Static ad", desc: "Single image OCR, visual rules and GPT", Icon: IconImage },
   { key: "VIDEO_STANDARD", label: "Video standard", desc: "Video OCR, Groq STT, YAMNet and timeline", Icon: IconVideo },
-  { key: "FULL_WITH_TRIBEV2", label: "Full + TribeV2", desc: "GPU transformer, 17-cluster and neuro scores", Icon: IconLayers },
+  { key: "FULL_WITH_TRIBEV2", label: "Brain Neuromarketing Signal Simulation", desc: "Deep CUDA GPU transformer & cortical parcellation engine", Icon: IconLayers },
 ] as const;
 
 export default function SignalJobWizard({ isOpen, onClose, onJobCreated }: SignalJobWizardProps) {
@@ -47,7 +47,7 @@ export default function SignalJobWizard({ isOpen, onClose, onJobCreated }: Signa
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [brandName, setBrandName] = useState("");
-  const [targetPlatform, setTargetPlatform] = useState("INSTAGRAM_REELS");
+  const [targetPlatform, setTargetPlatform] = useState("STATIC_META");
   const [placement, setPlacement] = useState("REEL");
   const [creativeGoal, setCreativeGoal] = useState("");
   const [selectedModel, setSelectedModel] = useState("gpt-4o");
@@ -161,7 +161,7 @@ export default function SignalJobWizard({ isOpen, onClose, onJobCreated }: Signa
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B0A09]/80 p-4">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#0B0A09]/80 backdrop-blur-sm p-4">
       <div className="bg-graphite-sunken border border-graphite-subtle rounded-md w-full max-w-2xl overflow-hidden shadow-[0_32px_64px_-16px_rgba(0,0,0,0.7)]">
         <div className="flex items-center justify-between px-6 py-4 border-b border-graphite-subtle bg-[#121110]">
           <div>
@@ -193,19 +193,32 @@ export default function SignalJobWizard({ isOpen, onClose, onJobCreated }: Signa
             <div className="grid grid-cols-3 gap-3">
               {MODE_OPTIONS.map(({ key, label, desc, Icon }) => {
                 const selected = mode === key;
+                const isDisabled = key === "FULL_WITH_TRIBEV2";
+
                 return (
                   <button
                     key={key}
                     type="button"
-                    onClick={() => setMode(key)}
+                    disabled={isDisabled}
+                    onClick={() => !isDisabled && setMode(key)}
                     aria-pressed={selected}
-                    className={`p-3.5 rounded-md border text-left transition-colors flex flex-col gap-2 ${
-                      selected
+                    className={`p-3.5 rounded-md border text-left transition-all flex flex-col gap-2 relative overflow-hidden ${
+                      isDisabled
+                        ? "opacity-55 cursor-not-allowed bg-[#121110]/50 border-graphite-subtle/40"
+                        : selected
                         ? "border-iris-primary bg-iris-primary/10 text-graphite-primary"
                         : "border-graphite-subtle bg-[#121110] text-graphite-tertiary hover:border-graphite-strong hover:text-graphite-secondary"
                     }`}
                   >
-                    <Icon className={`w-5 h-5 ${selected ? "text-iris-primary" : "text-graphite-tertiary"}`} />
+                    <div className="flex items-center justify-between w-full">
+                      <Icon className={`w-5 h-5 ${selected ? "text-iris-primary" : isDisabled ? "text-graphite-tertiary/50" : "text-graphite-tertiary"}`} />
+                      {isDisabled && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-mono font-bold bg-[#7C70F6]/15 text-[#7C70F6] border border-[#7C70F6]/40 shadow-[0_0_12px_rgba(124,112,246,0.35)] animate-pulse">
+                          <span className="w-1 h-1 rounded-full bg-[#7C70F6]"></span>
+                          Coming Soon
+                        </span>
+                      )}
+                    </div>
                     <div className="text-sm font-semibold">{label}</div>
                     <div className="text-xs text-graphite-tertiary leading-relaxed">{desc}</div>
                   </button>
@@ -301,8 +314,8 @@ export default function SignalJobWizard({ isOpen, onClose, onJobCreated }: Signa
                 onChange={(e) => setTargetPlatform(e.target.value)}
                 className="w-full px-3 py-2 bg-[#121110] border border-graphite-subtle rounded-md text-sm text-graphite-primary focus:outline-none focus:border-iris-primary transition-colors"
               >
-                <option value="STATIC_META">Static Meta Ads (FB/IG)</option>
-                <option value="STATIC_GOOGLE">Static Google Ads (Display/PMax)</option>
+                <option value="STATIC_META">Meta Ads (FB/IG)</option>
+                <option value="STATIC_GOOGLE">Google Ads (Display/PMax)</option>
                 <option value="INSTAGRAM_REELS">Instagram Reels</option>
                 <option value="META">Meta Feed</option>
                 <option value="YOUTUBE">YouTube Shorts</option>

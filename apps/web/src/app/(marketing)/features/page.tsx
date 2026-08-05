@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata = {
   title: "Features & Architecture — Sakhaa Signal",
-  description: "Comprehensive guide to static creative scoring, TribeV2 video attention modeling, and HCP-MMP1 cortical cluster mapping.",
+  description: "Comprehensive guide to static creative scoring, Brain Neuromarketing Signal Simulation video attention modeling, and HCP-MMP1 cortical cluster mapping.",
 };
 
 export default function FeaturesPage() {

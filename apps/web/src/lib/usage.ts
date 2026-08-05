@@ -5,8 +5,8 @@ export type AnalysisCostType = "STATIC_STANDARD" | "VIDEO_STANDARD" | "FULL_WITH
 const COST_MAP: Record<AnalysisCostType, number> = {
   STATIC_STANDARD: 1.0,      // 1 credit per static creative analysis
   VIDEO_STANDARD: 2.0,       // 2 credits per video standard analysis
-  FULL_WITH_TRIBEV2: 3.0,    // 3 credits per full video TribeV2 GPU analysis
-  TRIBEV2_VIDEO_FULL: 3.0,   // 3 credits alias for full video TribeV2 GPU analysis
+  FULL_WITH_TRIBEV2: 3.0,    // 3 credits per full video Brain Neuromarketing Signal Simulation GPU analysis
+  TRIBEV2_VIDEO_FULL: 3.0,   // 3 credits alias for full video Brain Neuromarketing Signal Simulation GPU analysis
 };
 
 /**

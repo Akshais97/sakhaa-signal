@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 
 interface Workspace {
   id: string;
@@ -16,19 +16,27 @@ export default function WorkspaceSwitcher({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    async function fetchWorkspaces() {
-      try {
-        const res = await fetch("/api/workspaces");
-        if (res.ok) {
-          const data = await res.json();
-          setWorkspaces(data.workspaces || []);
-        }
-      } catch {}
+  const handleToggle = async () => {
+    const nextIsOpen = !isOpen;
+    setIsOpen(nextIsOpen);
+
+    if (!nextIsOpen || hasLoaded || isLoading) return;
+
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/workspaces");
+      if (res.ok) {
+        const data = await res.json();
+        setWorkspaces(data.workspaces || []);
+      }
+    } finally {
+      setHasLoaded(true);
+      setIsLoading(false);
     }
-    fetchWorkspaces();
-  }, []);
+  };
 
   const handleSwitch = (wsId: string) => {
     document.cookie = `workspace-id=${wsId}; path=/; max-age=31536000`;
@@ -38,7 +46,7 @@ export default function WorkspaceSwitcher({
   return (
     <div className="relative inline-block text-left">
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleToggle}
         className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#1A1815] border border-[#46433C] text-sm text-[#F3F2EF] hover:border-[#7C70F6] transition-colors"
       >
         <span className="w-2 h-2 rounded-full bg-[#5BD08C]"></span>
@@ -57,7 +65,9 @@ export default function WorkspaceSwitcher({
           </div>
 
           <div className="max-h-48 overflow-y-auto">
-            {workspaces.length > 0 ? (
+            {isLoading ? (
+              <div className="px-3 py-2 text-xs text-[#8A867C]">Loading workspaces…</div>
+            ) : workspaces.length > 0 ? (
               workspaces.map((ws) => (
                 <button
                   key={ws.id}

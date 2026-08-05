@@ -143,8 +143,8 @@ def generate_llm_explanation(
     # Deterministic default files (will be overwritten if LLM succeeds)
     default_json = report_data.copy()
     default_exec_summary = (
-        "TRIBEv2 AD SCORER EXECUTIVE SUMMARY\n"
-        "====================================\n"
+        "BRAIN NEUROMARKETING SIGNAL SIMULATION EXECUTIVE SUMMARY\n"
+        "=======================================================\n"
         f"Engagement Score: {ep_score}/100\n"
         f"Virality Score: {vp_score}/100\n"
         f"Conversion Score: {cs_score}/100\n"
@@ -156,7 +156,7 @@ def generate_llm_explanation(
     
     default_md = f"""# Creative Performance & Cognitive Explanation Report
 
-This explanation report evaluates the creative effectiveness of the advertisement based on brain-response mappings from the TRIBEv2 multimodal transformer.
+This explanation report evaluates the creative effectiveness of the advertisement based on brain-response mappings from the Brain Neuromarketing Signal Simulation multimodal transformer.
 
 ## Outcome Analysis
 

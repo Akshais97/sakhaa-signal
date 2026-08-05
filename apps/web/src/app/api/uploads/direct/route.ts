@@ -112,17 +112,31 @@ export async function PUT(req: NextRequest) {
       }
     }
 
-    // Always ensure local storage copy as fallback in both web app local path and workspace root
-    const storageRoots = [
-      path.resolve(process.cwd(), ".local", "storage", "v0-local-quarantine"),
-      path.resolve(process.cwd(), "..", "..", ".local", "storage", "v0-local-quarantine"),
-    ];
+    // Skip local filesystem writes if S3/B2 upload succeeded or if running in production (Vercel ephemeral filesystem)
+    if (!uploadedToS3) {
+      if (process.env.NODE_ENV === "production") {
+        return NextResponse.json(
+          { error: "Storage upload failed and local filesystem fallback is disabled in production environment." },
+          { status: 500 }
+        );
+      }
 
-    for (const storageRoot of storageRoots) {
-      const filePath = resolvePathSafely(storageRoot, objectKey);
-      if (filePath) {
-        await mkdir(path.dirname(filePath), { recursive: true });
-        await writeFile(filePath, buffer);
+      // Local development fallback: write to local storage simulator only when offline/dev
+      const storageRoots = [
+        path.resolve(process.cwd(), ".local", "storage", "v0-local-quarantine"),
+        path.resolve(process.cwd(), "..", "..", ".local", "storage", "v0-local-quarantine"),
+      ];
+
+      for (const storageRoot of storageRoots) {
+        const filePath = resolvePathSafely(storageRoot, objectKey);
+        if (filePath) {
+          try {
+            await mkdir(path.dirname(filePath), { recursive: true });
+            await writeFile(filePath, buffer);
+          } catch (e) {
+            console.warn(`[LOCAL_FALLBACK_WARN] Local storage simulator write failed: ${(e as Error).message}`);
+          }
+        }
       }
     }
 

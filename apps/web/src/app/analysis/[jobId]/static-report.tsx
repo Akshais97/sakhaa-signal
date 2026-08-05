@@ -148,7 +148,7 @@ export default function StaticReport({ job: initialJob }: StaticReportProps) {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-graphite-subtle">
           <div>
             <div className="flex items-center gap-3 flex-wrap">
-              <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-iris-primary hover:underline font-medium">
+              <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-iris-primary hover:underline font-medium">
                 <IconBack className="w-4 h-4" />
                 <span>Back to dashboard</span>
               </Link>
