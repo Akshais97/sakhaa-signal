@@ -61,6 +61,10 @@ const p5Migration = await readFile(
   "packages/db/prisma/migrations/0015_v0_p5_ready_blueprint_formula_prompt/migration.sql",
   "utf8"
 );
+const signalMigration = await readFile(
+  "packages/db/prisma/migrations/0016_signal_analysis/migration.sql",
+  "utf8"
+);
 
 if (!schema.includes("provider = \"postgresql\"")) {
   throw new Error("Prisma datasource must use PostgreSQL.");
@@ -383,4 +387,21 @@ for (const required of [
   }
 }
 
-console.log("Database contract valid for V0-F5/B1/B2/B3/P1/P2/P3/P4/P5 identity, idempotency, artifacts, jobs, outbox, capability controls, service credentials, brand intake, brand candidates, brand memory, blueprint path selection, viral candidate metrics, media acquisition, thumbnail blueprints, scene blueprints, formula derivations, director prompts and RLS.");
+for (const required of [
+  "sync_auth_user_to_public_users",
+  "FROM auth.users",
+  "CREATE TABLE IF NOT EXISTS analysis_jobs",
+  "CREATE TABLE IF NOT EXISTS analysis_stages",
+  "CREATE TABLE IF NOT EXISTS evidence_observations",
+  "CREATE TABLE IF NOT EXISTS rule_results",
+  "CREATE TABLE IF NOT EXISTS category_scores",
+  "CREATE TABLE IF NOT EXISTS findings",
+  "CREATE TABLE IF NOT EXISTS report_artifacts",
+  "ALTER TABLE analysis_jobs ENABLE ROW LEVEL SECURITY;"
+]) {
+  if (!signalMigration.includes(required)) {
+    throw new Error(`Missing required signal-analysis migration statement: ${required}`);
+  }
+}
+
+console.log("Database contract valid through 0016, including Supabase user synchronization, signal analysis tables, and RLS.");

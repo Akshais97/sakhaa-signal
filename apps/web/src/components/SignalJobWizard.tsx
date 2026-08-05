@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { ALLOWED_ANALYSIS_MODELS, type AllowedAnalysisModel } from "@sakhaa-forge/contracts";
 
 interface SignalJobWizardProps {
   isOpen: boolean;
@@ -25,10 +26,6 @@ const IconImage = (p: IconProps) => (
 const IconVideo = (p: IconProps) => (
   <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...p}><rect x="2.5" y="4.5" width="11" height="11" rx="2" /><path d="m13.5 8 4-2.2v8.4l-4-2.2" /></svg>
 );
-const IconLayers = (p: IconProps) => (
-  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="m10 2 8 4.5-8 4.5-8-4.5L10 2Z" /><path d="m2 10 8 4.5 8-4.5" /><path d="m2 14 8 4.5 8-4.5" /></svg>
-);
-
 const Spinner = ({ className = "" }: { className?: string }) => (
   <svg className={`animate-spin ${className}`} fill="none" viewBox="0 0 24 24" aria-hidden="true">
     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -39,18 +36,17 @@ const Spinner = ({ className = "" }: { className?: string }) => (
 const MODE_OPTIONS = [
   { key: "STATIC_STANDARD", label: "Static ad", desc: "Single image OCR, visual rules and GPT", Icon: IconImage },
   { key: "VIDEO_STANDARD", label: "Video standard", desc: "Video OCR, Groq STT, YAMNet and timeline", Icon: IconVideo },
-  { key: "FULL_WITH_TRIBEV2", label: "Brain Neuromarketing Signal Simulation", desc: "Deep CUDA GPU transformer & cortical parcellation engine", Icon: IconLayers },
 ] as const;
 
 export default function SignalJobWizard({ isOpen, onClose, onJobCreated }: SignalJobWizardProps) {
-  const [mode, setMode] = useState<"STATIC_STANDARD" | "VIDEO_STANDARD" | "FULL_WITH_TRIBEV2">("STATIC_STANDARD");
+  const [mode, setMode] = useState<"STATIC_STANDARD" | "VIDEO_STANDARD">("STATIC_STANDARD");
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [brandName, setBrandName] = useState("");
   const [targetPlatform, setTargetPlatform] = useState("STATIC_META");
   const [placement, setPlacement] = useState("REEL");
   const [creativeGoal, setCreativeGoal] = useState("");
-  const [selectedModel, setSelectedModel] = useState("gpt-4o");
+  const [selectedModel, setSelectedModel] = useState<AllowedAnalysisModel>("gpt-4o");
 
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -105,10 +101,10 @@ export default function SignalJobWizard({ isOpen, onClose, onJobCreated }: Signa
         throw new Error(errJson.error || "Failed to get presigned upload URL");
       }
 
-      const { uploadUrl, artifactId, objectKey } = await presignRes.json();
+      const { uploadUrl, artifactId } = await presignRes.json();
       setUploadProgress(40);
 
-      // 2. Upload file payload via same-origin upload proxy endpoint
+      // 2. Upload directly to B2 using the short-lived signed URL.
       const uploadRes = await fetch(uploadUrl, {
         method: "PUT",
         headers: {
@@ -118,27 +114,37 @@ export default function SignalJobWizard({ isOpen, onClose, onJobCreated }: Signa
       });
 
       if (!uploadRes.ok) {
-        const errJson = await uploadRes.json().catch(() => ({}));
-        throw new Error(errJson.error || "Failed to upload creative file to storage.");
+        const uploadError = await uploadRes.text().catch(() => "");
+        throw new Error(uploadError || "Failed to upload creative file to storage.");
       }
 
-      setUploadProgress(80);
+      setUploadProgress(70);
 
-      // 3. Create Analysis Job in DB
+      const completeRes = await fetch("/api/uploads/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ artifactId }),
+      });
+      if (!completeRes.ok) {
+        const completionError = await completeRes.json().catch(() => ({}));
+        throw new Error(completionError.error || "Upload verification failed.");
+      }
+      setUploadProgress(85);
+
+      // 4. Create Analysis Job in DB
       const createJobRes = await fetch("/api/analysis/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode,
           inputArtifactId: artifactId,
-          inputObjectKey: objectKey,
           mediaType,
           title: title || `${brandName || "Ad"} ${mediaType === "video" ? "Video" : "Static"} Analysis`,
           brandName,
           targetPlatform,
           placement,
           creativeGoal,
-          selectedModel: selectedModel.trim() || "gpt-4o",
+          selectedModel,
         }),
       });
 
@@ -190,34 +196,23 @@ export default function SignalJobWizard({ isOpen, onClose, onJobCreated }: Signa
             <label className="block text-xs font-semibold text-graphite-tertiary mb-2 uppercase tracking-wider">
               Analysis mode
             </label>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               {MODE_OPTIONS.map(({ key, label, desc, Icon }) => {
                 const selected = mode === key;
-                const isDisabled = key === "FULL_WITH_TRIBEV2";
-
                 return (
                   <button
                     key={key}
                     type="button"
-                    disabled={isDisabled}
-                    onClick={() => !isDisabled && setMode(key)}
+                    onClick={() => setMode(key)}
                     aria-pressed={selected}
                     className={`p-3.5 rounded-md border text-left transition-all flex flex-col gap-2 relative overflow-hidden ${
-                      isDisabled
-                        ? "opacity-55 cursor-not-allowed bg-[#121110]/50 border-graphite-subtle/40"
-                        : selected
+                      selected
                         ? "border-iris-primary bg-iris-primary/10 text-graphite-primary"
                         : "border-graphite-subtle bg-[#121110] text-graphite-tertiary hover:border-graphite-strong hover:text-graphite-secondary"
                     }`}
                   >
                     <div className="flex items-center justify-between w-full">
-                      <Icon className={`w-5 h-5 ${selected ? "text-iris-primary" : isDisabled ? "text-graphite-tertiary/50" : "text-graphite-tertiary"}`} />
-                      {isDisabled && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-mono font-bold bg-[#7C70F6]/15 text-[#7C70F6] border border-[#7C70F6]/40 shadow-[0_0_12px_rgba(124,112,246,0.35)] animate-pulse">
-                          <span className="w-1 h-1 rounded-full bg-[#7C70F6]"></span>
-                          Coming Soon
-                        </span>
-                      )}
+                      <Icon className={`w-5 h-5 ${selected ? "text-iris-primary" : "text-graphite-tertiary"}`} />
                     </div>
                     <div className="text-sm font-semibold">{label}</div>
                     <div className="text-xs text-graphite-tertiary leading-relaxed">{desc}</div>
@@ -265,32 +260,18 @@ export default function SignalJobWizard({ isOpen, onClose, onJobCreated }: Signa
           <div>
             <div className="flex justify-between items-center mb-1">
               <label className="block text-sm text-graphite-tertiary">OpenAI Vision Model</label>
-              <span className="text-xs text-iris-primary font-mono">Dynamic Selection</span>
+              <span className="text-xs text-iris-primary font-mono">Approved models</span>
             </div>
             <div className="space-y-2">
-              <input
-                type="text"
-                placeholder="e.g. gpt-4o, gpt-5.6-sol, gpt-4.5-preview"
+              <select
                 value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
+                onChange={(e) => setSelectedModel(e.target.value as AllowedAnalysisModel)}
                 className="w-full px-3 py-2 bg-[#121110] border border-graphite-subtle rounded-md text-sm font-mono text-graphite-primary placeholder-[#615D55] focus:outline-none focus:border-iris-primary focus:ring-1 focus:ring-iris-primary transition-colors"
-              />
-              <div className="flex gap-2 flex-wrap">
-                {["gpt-4o", "gpt-5.6-sol", "gpt-4.5-preview", "gpt-4o-mini"].map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setSelectedModel(m)}
-                    className={`text-xs px-2.5 py-1 rounded border font-mono transition-colors ${
-                      selectedModel === m
-                        ? "bg-iris-primary/20 border-iris-primary text-iris-primary font-semibold"
-                        : "bg-[#121110] border-graphite-subtle text-graphite-tertiary hover:border-graphite-strong hover:text-graphite-secondary"
-                    }`}
-                  >
-                    {m}
-                  </button>
+              >
+                {ALLOWED_ANALYSIS_MODELS.map((model) => (
+                  <option key={model} value={model}>{model}</option>
                 ))}
-              </div>
+              </select>
             </div>
           </div>
 

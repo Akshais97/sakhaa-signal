@@ -1,8 +1,10 @@
 import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { writeFile, mkdir, copyFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
+import { createWriteStream } from "node:fs";
+import { pipeline } from "node:stream/promises";
 
 export class StorageAdapter {
   private s3Client?: S3Client;
@@ -36,12 +38,7 @@ export class StorageAdapter {
 
         const response = await this.s3Client.send(command);
         if (response.Body) {
-          const stream = response.Body as Readable;
-          const chunks: Buffer[] = [];
-          for await (const chunk of stream) {
-            chunks.push(Buffer.from(chunk));
-          }
-          await writeFile(destLocalPath, Buffer.concat(chunks));
+          await pipeline(response.Body as Readable, createWriteStream(destLocalPath));
           return;
         }
       } catch (err: any) {
@@ -70,8 +67,7 @@ export class StorageAdapter {
       throw new Error(`Media object key "${objectKey}" not found in S3/B2 or local storage.`);
     }
 
-    const data = await readFile(foundPath);
-    await writeFile(destLocalPath, data);
+    await copyFile(foundPath, destLocalPath);
   }
 
   async uploadArtifactBuffer(buffer: Buffer, objectKey: string, contentType: string): Promise<string> {

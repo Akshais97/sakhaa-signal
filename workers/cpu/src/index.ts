@@ -2,6 +2,8 @@ import "dotenv/config";
 import dotenv from "dotenv";
 import path from "node:path";
 import os from "node:os";
+import { stat, readFile, rm } from "node:fs/promises";
+import { ANALYSIS_STAGE } from "@sakhaa-forge/contracts";
 
 // Ensure root .env is loaded
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
@@ -25,7 +27,19 @@ import {
   runBrainOrchestration,
   detectSpeechIntervalsWithSileroVAD,
 } from "@sakhaa-signal/engines";
-import { readFile } from "node:fs/promises";
+
+function validateProductionEnvironment() {
+  if (process.env.NODE_ENV !== "production") return;
+  const required = [
+    "DATABASE_URL", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_ENDPOINT_URL",
+    "AWS_DEFAULT_REGION", "B2_BUCKET_QUARANTINE", "B2_BUCKET_PRIVATE_ARTIFACTS",
+    "OPENAI_API_KEY", "GROQ_API_KEY", "FFMPEG_PATH", "FFPROBE_PATH",
+  ];
+  const missing = required.filter((name) => !process.env[name]);
+  if (missing.length) throw new Error(`Missing required worker environment variables: ${missing.join(", ")}`);
+}
+
+validateProductionEnvironment();
 
 function getWorkerDbUrl() {
   const url = process.env.DATABASE_URL || "";
@@ -44,21 +58,24 @@ const prisma = new PrismaClient({
 const storage = new StorageAdapter();
 const WORKER_ID = `cpu-worker-${os.hostname()}-${process.pid}`;
 const POLL_INTERVAL_MS = 3000;
+const LEASE_DURATION_MS = 5 * 60 * 1000;
+const LEASE_HEARTBEAT_MS = 60 * 1000;
 
 console.log(`[SIGNAL_CPU_WORKER] Started as ${WORKER_ID}`);
 
 async function claimEligibleJob() {
   const now = new Date();
-  const leaseDurationMs = 5 * 60 * 1000;
-  const leaseExpiresAt = new Date(now.getTime() + leaseDurationMs);
+  const leaseExpiresAt = new Date(now.getTime() + LEASE_DURATION_MS);
 
   const eligible = await prisma.analysisJob.findFirst({
     where: {
+      mode: { in: ["STATIC_STANDARD", "VIDEO_STANDARD"] },
       OR: [
         // Recover analysis jobs created during the 2026-08 queue regression.
         { status: "CREATED" },
         { status: "QUEUED" },
         { status: "LEASED", leaseExpiresAt: { lt: now } },
+        { status: "RUNNING", leaseExpiresAt: { lt: now } },
       ],
     },
     orderBy: { createdAt: "asc" },
@@ -92,23 +109,32 @@ export async function processJob(job: any) {
   console.log(`[SIGNAL_CPU_WORKER] Processing Job: ${job.id} (${job.mode} - ${job.mediaType}) [Model: ${job.selectedModel || "default"}]`);
   const tempDir = path.resolve(os.tmpdir(), "sakhaa-signal", job.id);
 
+  const heartbeat = setInterval(() => {
+    void prisma.analysisJob.updateMany({
+      where: { id: job.id, leaseOwner: WORKER_ID, status: { in: ["LEASED", "RUNNING"] } },
+      data: { leaseExpiresAt: new Date(Date.now() + LEASE_DURATION_MS) },
+    }).catch((error) => console.error(`[SIGNAL_CPU_WORKER] Lease heartbeat failed for ${job.id}`, error));
+  }, LEASE_HEARTBEAT_MS);
+
   try {
+    await prisma.analysisJob.update({ where: { id: job.id }, data: { status: "RUNNING" } });
     // 1. Download & Validate Stage
-    await updateStage(job.id, "DOWNLOAD_AND_VALIDATE", "RUNNING", 10);
+    await updateStage(job.id, ANALYSIS_STAGE.DOWNLOAD_AND_VALIDATE, "RUNNING", 10);
     const localInputPath = path.join(tempDir, "input_media");
     await storage.downloadToLocal(job.inputObjectKey, localInputPath);
-    await updateStage(job.id, "DOWNLOAD_AND_VALIDATE", "SUCCEEDED", 20);
+    await updateStage(job.id, ANALYSIS_STAGE.DOWNLOAD_AND_VALIDATE, "SUCCEEDED", 20);
 
-    const mediaBuffer = await readFile(localInputPath);
-    if (!mediaBuffer || mediaBuffer.byteLength === 0) {
+    const downloaded = await stat(localInputPath);
+    if (downloaded.size === 0) {
       throw new Error(`Downloaded media file (${job.inputObjectKey}) is empty (0 bytes). Please re-upload a valid file.`);
     }
 
-    const isVideo = job.mediaType === "VIDEO" || job.mode === "VIDEO_STANDARD" || job.mode === "FULL_WITH_TRIBEV2" || job.inputObjectKey.match(/\.(mp4|mov|webm)$/i);
+    const isVideo = job.mediaType === "VIDEO" || job.mode === "VIDEO_STANDARD" || job.inputObjectKey.match(/\.(mp4|mov|webm)$/i);
 
     if (isVideo) {
-      await processVideoJob(job, mediaBuffer);
+      await processVideoJob(job, localInputPath);
     } else {
+      const mediaBuffer = await readFile(localInputPath);
       await processStaticJob(job, mediaBuffer);
     }
   } catch (error: any) {
@@ -122,17 +148,20 @@ export async function processJob(job: any) {
         leaseExpiresAt: null,
       },
     });
+  } finally {
+    clearInterval(heartbeat);
+    await rm(tempDir, { recursive: true, force: true });
   }
 }
 
 async function processStaticJob(job: any, imageBuffer: Buffer) {
   // Preprocessing Stage (Inspection)
-  await updateStage(job.id, "PREPROCESSING", "RUNNING", 30);
+  await updateStage(job.id, ANALYSIS_STAGE.PREPROCESSING, "RUNNING", 30);
   const inspection = await inspectImage(imageBuffer);
-  await updateStage(job.id, "PREPROCESSING", "SUCCEEDED", 40);
+  await updateStage(job.id, ANALYSIS_STAGE.PREPROCESSING, "SUCCEEDED", 40);
 
   // Computer Vision Stage
-  await updateStage(job.id, "COMPUTER_VISION", "RUNNING", 50);
+  await updateStage(job.id, ANALYSIS_STAGE.COMPUTER_VISION, "RUNNING", 50);
   const vision = await analyzeStaticCreativeWithOpenAI(
     imageBuffer,
     inspection,
@@ -157,10 +186,10 @@ async function processStaticJob(job: any, imageBuffer: Buffer) {
       },
     });
   }
-  await updateStage(job.id, "COMPUTER_VISION", "SUCCEEDED", 65);
+  await updateStage(job.id, ANALYSIS_STAGE.COMPUTER_VISION, "SUCCEEDED", 65);
 
   // Rule Evaluation Stage
-  await updateStage(job.id, "RULE_EVALUATION", "RUNNING", 75);
+  await updateStage(job.id, ANALYSIS_STAGE.RULE_EVALUATION, "RUNNING", 75);
   const rules = evaluateStaticRules(inspection, vision, {
     brandName: job.brandName,
     creativeGoal: job.creativeGoal,
@@ -179,10 +208,10 @@ async function processStaticJob(job: any, imageBuffer: Buffer) {
       },
     });
   }
-  await updateStage(job.id, "RULE_EVALUATION", "SUCCEEDED", 80);
+  await updateStage(job.id, ANALYSIS_STAGE.RULE_EVALUATION, "SUCCEEDED", 80);
 
   // Deterministic Scoring Stage
-  await updateStage(job.id, "DETERMINISTIC_SCORING", "RUNNING", 85);
+  await updateStage(job.id, ANALYSIS_STAGE.DETERMINISTIC_SCORING, "RUNNING", 85);
   const scoring = computeStaticCategoryScores(inspection, vision, rules, {
     targetPlatform: job.targetPlatform,
     brandName: job.brandName,
@@ -201,10 +230,10 @@ async function processStaticJob(job: any, imageBuffer: Buffer) {
       },
     });
   }
-  await updateStage(job.id, "DETERMINISTIC_SCORING", "SUCCEEDED", 90);
+  await updateStage(job.id, ANALYSIS_STAGE.DETERMINISTIC_SCORING, "SUCCEEDED", 90);
 
   // Strategic Synthesis Stage
-  await updateStage(job.id, "MULTIMODAL_GPT_SYNTHESIS", "RUNNING", 92);
+  await updateStage(job.id, ANALYSIS_STAGE.MULTIMODAL_GPT_SYNTHESIS, "RUNNING", 92);
   for (const f of vision.findings) {
     await prisma.finding.create({
       data: {
@@ -219,10 +248,10 @@ async function processStaticJob(job: any, imageBuffer: Buffer) {
       },
     });
   }
-  await updateStage(job.id, "MULTIMODAL_GPT_SYNTHESIS", "SUCCEEDED", 95);
+  await updateStage(job.id, ANALYSIS_STAGE.MULTIMODAL_GPT_SYNTHESIS, "SUCCEEDED", 95);
 
   // Report Publishing
-  await updateStage(job.id, "REPORT_PUBLISHING", "RUNNING", 98);
+  await updateStage(job.id, ANALYSIS_STAGE.REPORT_PUBLISHING, "RUNNING", 98);
   const summaryJson = {
     jobId: job.id,
     title: job.title,
@@ -255,18 +284,20 @@ async function processStaticJob(job: any, imageBuffer: Buffer) {
   await saveReportAndComplete(job, summaryJson);
 }
 
-async function processVideoJob(job: any, videoBuffer: Buffer) {
+async function processVideoJob(job: any, videoPath: string) {
   // 1. Preprocessing Stage (Inspection & Keyframe Extraction)
-  await updateStage(job.id, "PREPROCESSING", "RUNNING", 30);
-  const inspection = await inspectVideo(videoBuffer, path.basename(job.inputObjectKey));
-  await updateStage(job.id, "PREPROCESSING", "SUCCEEDED", 40);
+  await updateStage(job.id, ANALYSIS_STAGE.PREPROCESSING, "RUNNING", 30);
+  const inspection = await inspectVideo(videoPath, path.basename(job.inputObjectKey));
+  await updateStage(job.id, ANALYSIS_STAGE.PREPROCESSING, "SUCCEEDED", 40);
 
   // 2. Video Intelligence & Speech/Audio Evidence Stage
-  await updateStage(job.id, "COMPUTER_VISION", "RUNNING", 50);
-  const intelligence = await analyzeVideoWithIntelligence(videoBuffer, inspection.durationMs);
-  const transcript = await transcribeAudioWithGroq(inspection.audioWavBuffer, inspection.durationMs);
-  const audio = await classifyAudioWithYAMNet(inspection.audioWavBuffer, inspection.durationMs);
-  const vad = await detectSpeechIntervalsWithSileroVAD(inspection.audioWavBuffer, inspection.durationMs);
+  await updateStage(job.id, ANALYSIS_STAGE.COMPUTER_VISION, "RUNNING", 50);
+  const [intelligence, transcript, audio, vad] = await Promise.all([
+    analyzeVideoWithIntelligence(videoPath, inspection.durationMs),
+    transcribeAudioWithGroq(inspection.audioWavBuffer, inspection.durationMs),
+    classifyAudioWithYAMNet(inspection.audioWavBuffer, inspection.durationMs),
+    detectSpeechIntervalsWithSileroVAD(inspection.audioWavBuffer, inspection.durationMs),
+  ]);
 
   // Construct Temporal Evidence Graph
   const evidenceGraph = new TemporalEvidenceGraph(inspection.durationMs);
@@ -321,10 +352,10 @@ async function processVideoJob(job: any, videoBuffer: Buffer) {
     });
   }
 
-  await updateStage(job.id, "COMPUTER_VISION", "SUCCEEDED", 65);
+  await updateStage(job.id, ANALYSIS_STAGE.COMPUTER_VISION, "SUCCEEDED", 65);
 
   // 3. Rule & 8-Category PPC Scoring Stage
-  await updateStage(job.id, "DETERMINISTIC_SCORING", "RUNNING", 80);
+  await updateStage(job.id, ANALYSIS_STAGE.DETERMINISTIC_SCORING, "RUNNING", 80);
   const ppcScoring = computePPCScoring(evidenceGraph);
   const legacyScoring = scoreVideoCreative(inspection, intelligence, transcript, audio);
   
@@ -352,10 +383,10 @@ async function processVideoJob(job: any, videoBuffer: Buffer) {
       },
     });
   }
-  await updateStage(job.id, "DETERMINISTIC_SCORING", "SUCCEEDED", 88);
+  await updateStage(job.id, ANALYSIS_STAGE.DETERMINISTIC_SCORING, "SUCCEEDED", 88);
 
   // 4. Video Synthesis Stage (GPT-5.6 Sol / Terra Brain Orchestration)
-  await updateStage(job.id, "MULTIMODAL_GPT_SYNTHESIS", "RUNNING", 92);
+  await updateStage(job.id, ANALYSIS_STAGE.MULTIMODAL_GPT_SYNTHESIS, "RUNNING", 92);
   
   let brainDiagnosis: any = null;
   let fallbackSynthesis: any = null;
@@ -401,10 +432,10 @@ async function processVideoJob(job: any, videoBuffer: Buffer) {
       },
     });
   }
-  await updateStage(job.id, "MULTIMODAL_GPT_SYNTHESIS", "SUCCEEDED", 95);
+  await updateStage(job.id, ANALYSIS_STAGE.MULTIMODAL_GPT_SYNTHESIS, "SUCCEEDED", 95);
 
   // 5. Report Publishing Stage
-  await updateStage(job.id, "REPORT_PUBLISHING", "RUNNING", 98);
+  await updateStage(job.id, ANALYSIS_STAGE.REPORT_PUBLISHING, "RUNNING", 98);
   const summaryJson = {
     jobId: job.id,
     title: job.title,
@@ -476,7 +507,7 @@ async function saveReportAndComplete(job: any, summaryJson: any) {
     },
   });
 
-  await updateStage(job.id, "REPORT_PUBLISHING", "SUCCEEDED", 100);
+  await updateStage(job.id, ANALYSIS_STAGE.REPORT_PUBLISHING, "SUCCEEDED", 100);
 
   await prisma.analysisJob.update({
     where: { id: job.id },

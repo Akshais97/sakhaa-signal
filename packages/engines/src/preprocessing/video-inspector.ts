@@ -41,42 +41,30 @@ function getFfmpegPath(): string {
   return "ffmpeg";
 }
 
-export async function inspectVideo(videoBuffer: Buffer, fileName: string = "video.mp4"): Promise<VideoInspectionResult> {
-  if (!videoBuffer || videoBuffer.byteLength === 0) {
-    throw new Error("Invalid or empty video buffer provided for video creative analysis.");
-  }
-
-  // Create temporary workspace directory for bounded FFmpeg execution
+export async function inspectVideo(videoInput: Buffer | string, fileName: string = "video.mp4"): Promise<VideoInspectionResult> {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "sakhaa-video-"));
-  const inputVideoPath = path.join(tempDir, fileName);
+  const inputVideoPath = typeof videoInput === "string" ? videoInput : path.join(tempDir, fileName);
 
   try {
-    fs.writeFileSync(inputVideoPath, videoBuffer);
+    if (typeof videoInput !== "string") fs.writeFileSync(inputVideoPath, videoInput);
+    const byteSize = fs.statSync(inputVideoPath).size;
+    if (byteSize === 0) throw new Error("Invalid or empty video provided for video creative analysis.");
 
-    let probeData: any = null;
-    try {
-      const { stdout } = await execFileAsync(getFfprobePath(), [
-        "-v",
-        "quiet",
-        "-print_format",
-        "json",
-        "-show_format",
-        "-show_streams",
-        inputVideoPath,
-      ]);
-      probeData = JSON.parse(stdout);
-    } catch (probeErr) {
-      console.warn("[VIDEO_INSPECTOR] ffprobe execution failed or not installed. Using fallback video probe metadata.", probeErr);
-    }
+    const { stdout } = await execFileAsync(getFfprobePath(), [
+      "-v", "error", "-print_format", "json", "-show_format", "-show_streams", inputVideoPath,
+    ]).catch((error) => {
+      throw new Error(`FFprobe could not inspect the uploaded video: ${error instanceof Error ? error.message : String(error)}`);
+    });
+    const probeData: any = JSON.parse(stdout);
 
     const videoStream = probeData?.streams?.find((s: any) => s.codec_type === "video");
     const audioStream = probeData?.streams?.find((s: any) => s.codec_type === "audio");
 
-    const durationMs = probeData?.format?.duration
-      ? Math.round(parseFloat(probeData.format.duration) * 1000)
-      : 15000;
-    const width = videoStream?.width ? parseInt(videoStream.width, 10) : 1080;
-    const height = videoStream?.height ? parseInt(videoStream.height, 10) : 1920;
+    if (!videoStream) throw new Error("The uploaded file contains no readable video stream.");
+    const durationMs = Math.round(parseFloat(probeData?.format?.duration || "0") * 1000);
+    const width = parseInt(videoStream.width || "0", 10);
+    const height = parseInt(videoStream.height || "0", 10);
+    if (!durationMs || !width || !height) throw new Error("FFprobe returned incomplete video metadata.");
 
     let fps = 30;
     if (videoStream?.r_frame_rate) {
@@ -174,7 +162,7 @@ export async function inspectVideo(videoBuffer: Buffer, fileName: string = "vide
       fps,
       aspectRatio,
       aspectRatioLabel,
-      byteSize: videoBuffer.byteLength,
+      byteSize,
       hasAudio,
       keyframes,
       audioWavBuffer,

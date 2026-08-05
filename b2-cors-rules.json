@@ -1,0 +1,17 @@
+[
+  {
+    "corsRuleName": "quarantine-upload-local-prod",
+    "allowedOrigins": [
+      "http://localhost:3000",
+      "https://YOUR-VERCEL-DOMAIN.vercel.app"
+    ],
+    "allowedHeaders": ["*"],
+    "allowedOperations": [
+      "s3_put",
+      "s3_get",
+      "s3_head"
+    ],
+    "exposeHeaders": ["ETag"],
+    "maxAgeSeconds": 3600
+  }
+]

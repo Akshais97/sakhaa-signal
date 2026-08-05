@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import crypto from "node:crypto";
 import prisma from "@/lib/db";
 import { getAuthenticatedSession } from "@/lib/auth";
-import { MAX_UPLOAD_SIZE_BYTES } from "@/lib/storageUtils";
+import { getB2Client, getQuarantineBucket, isB2Configured } from "@/lib/b2";
+import { validateUploadMetadata } from "@/lib/uploadSanitizer";
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,25 +29,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid upload payload size" }, { status: 400 });
     }
 
-    if (sizeInBytes > MAX_UPLOAD_SIZE_BYTES) {
-      return NextResponse.json(
-        {
-          error: `File size (${(sizeInBytes / (1024 * 1024)).toFixed(1)}MB) exceeds maximum allowed limit of ${(
-            MAX_UPLOAD_SIZE_BYTES / (1024 * 1024)
-          ).toFixed(0)}MB`,
-        },
-        { status: 413 }
-      );
+    const normalizedMediaType = String(mediaType).toUpperCase();
+    if (normalizedMediaType !== "IMAGE" && normalizedMediaType !== "VIDEO") {
+      return NextResponse.json({ error: "mediaType must be image or video" }, { status: 400 });
     }
-
-    // Validate allowed file extensions
-    const ext = fileName.split(".").pop()?.toLowerCase() || "";
-    const allowedExtensions = ["mp4", "mov", "webm", "avi", "png", "jpg", "jpeg", "webp"];
-    if (!allowedExtensions.includes(ext)) {
-      return NextResponse.json(
-        { error: `Unsupported file extension '.${ext}'. Allowed formats: ${allowedExtensions.join(", ")}` },
-        { status: 400 }
-      );
+    const validation = validateUploadMetadata(
+      String(fileName),
+      String(contentType),
+      sizeInBytes,
+      normalizedMediaType
+    );
+    if (!validation.valid) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
     const artifactId = crypto.randomUUID();
@@ -68,14 +64,31 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Use same-origin upload proxy endpoint to guarantee 0 CORS preflight issues across all browsers
-    const uploadUrl = `/api/uploads/direct?key=${encodeURIComponent(objectKey)}&artifactId=${artifact.id}`;
+    let uploadUrl: string;
+    if (isB2Configured()) {
+      uploadUrl = await getSignedUrl(
+        getB2Client(),
+        new PutObjectCommand({
+          Bucket: getQuarantineBucket(),
+          Key: objectKey,
+          ContentType: String(contentType),
+          ContentLength: sizeInBytes,
+        }),
+        { expiresIn: 15 * 60 }
+      );
+    } else if (process.env.NODE_ENV !== "production") {
+      uploadUrl = `/api/uploads/direct?key=${encodeURIComponent(objectKey)}&artifactId=${artifact.id}`;
+    } else {
+      await prisma.artifact.delete({ where: { id: artifact.id } });
+      return NextResponse.json({ error: "Backblaze B2 is not configured" }, { status: 503 });
+    }
 
     return NextResponse.json({
       uploadUrl,
       artifactId: artifact.id,
       objectKey,
       workspaceId: ws.id,
+      expiresInSeconds: 15 * 60,
     });
   } catch (error: any) {
     console.error("[PRESIGN_UPLOAD_ERROR]", error);

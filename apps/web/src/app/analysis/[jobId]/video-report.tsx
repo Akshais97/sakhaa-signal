@@ -2,7 +2,6 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 type IconProps = React.SVGProps<SVGSVGElement>;
 
@@ -108,11 +107,11 @@ const IconAlertTriangle = (p: IconProps) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
 );
 
-export default function VideoReport({ job }: { job: any }) {
-  const router = useRouter();
+export default function VideoReport({ job: initialJob }: { job: any }) {
+  const [job, setJob] = useState<any>(initialJob);
   const reportArtifact = job.reports?.[0]?.summaryJson || {};
-  const mediaUrl = job.inputObjectKey
-    ? `/api/uploads/view?key=${encodeURIComponent(job.inputObjectKey)}`
+  const mediaUrl = job.inputArtifactId
+    ? `/api/artifacts/${job.inputArtifactId}/view`
     : "";
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -129,12 +128,23 @@ export default function VideoReport({ job }: { job: any }) {
   // Auto-poll if job is currently running in background
   useEffect(() => {
     if (isInProgress) {
-      const interval = setInterval(() => {
-        router.refresh();
+      const interval = setInterval(async () => {
+        const response = await fetch(`/api/analysis/jobs/${initialJob.id}/status`, { cache: "no-store" });
+        if (!response.ok) return;
+        const status = await response.json();
+        if (status.status === "SUCCEEDED") {
+          const reportResponse = await fetch(`/api/analysis/jobs/${initialJob.id}/report`, { cache: "no-store" });
+          if (reportResponse.ok) {
+            const { job: completedJob } = await reportResponse.json();
+            setJob(completedJob);
+          }
+        } else {
+          setJob((current: any) => ({ ...current, ...status }));
+        }
       }, 4000);
       return () => clearInterval(interval);
     }
-  }, [isInProgress, router]);
+  }, [initialJob.id, isInProgress]);
 
   const overallScore = reportArtifact.overallScore ?? job.overallScore ?? null;
   const tier = reportArtifact.tier || (overallScore !== null ? (overallScore >= 85 ? "TOP_PERFORMER" : overallScore >= 70 ? "STRONG_CONTENDER" : "AVERAGE") : "PROCESSING");
