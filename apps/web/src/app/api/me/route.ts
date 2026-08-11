@@ -10,18 +10,23 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: sessionUser.id },
-      select: {
-        id: true,
-        email: true,
-        displayName: true,
-        createdAt: true,
-      },
-    });
+    let dbUser = null;
+    try {
+      dbUser = await prisma.user.findUnique({
+        where: { id: sessionUser.id },
+        select: {
+          id: true,
+          email: true,
+          displayName: true,
+          createdAt: true,
+        },
+      });
+    } catch (dbErr) {
+      console.warn("[API/ME DB WARNING]", dbErr);
+    }
 
     const userPayload = {
-      ...(user || sessionUser),
+      ...(dbUser || sessionUser),
       isPlatformAdmin: (sessionUser as any)?.isPlatformAdmin ?? false,
     };
 
