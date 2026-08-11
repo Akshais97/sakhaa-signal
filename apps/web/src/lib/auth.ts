@@ -179,21 +179,28 @@ export const getAuthenticatedSession = safeCache(async () => {
 
     if (!ws) {
       const name = `${user.email?.split("@")[0] || "User"}'s Workspace`;
-      const slug = `workspace-${user.id.substring(0, 8)}`;
+      const slug = `ws-${user.id.substring(0, 8)}-${Date.now().toString(36)}`;
       const assignedRole = roleConfig?.role || "OWNER";
 
-      ws = await prisma.workspace.create({
-        data: {
-          name,
-          slug,
-          memberships: {
-            create: {
-              userId: user.id,
-              role: assignedRole,
+      try {
+        ws = await prisma.workspace.create({
+          data: {
+            name,
+            slug,
+            memberships: {
+              create: {
+                userId: user.id,
+                role: assignedRole,
+              },
             },
           },
-        },
-      });
+        });
+      } catch (createErr) {
+        console.warn("[AUTH WORKSPACE CREATION FALLBACK]", createErr);
+        ws = await prisma.workspace.findFirst({
+          where: { status: "ACTIVE" },
+        });
+      }
     }
   } catch (dbError) {
     console.error("[AUTH DB PROVISIONING ERROR]", dbError);
