@@ -157,14 +157,14 @@ export default function MembersPage() {
   };
 
   const filteredMembers = members.filter(
-    (m) =>
+    (m: Member) =>
       m.user?.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       m.user?.displayName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       m.role.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const filteredInvites = invites.filter(
-    (i) =>
+    (i: Invite) =>
       i.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       i.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
       i.status.toLowerCase().includes(searchQuery.toLowerCase())

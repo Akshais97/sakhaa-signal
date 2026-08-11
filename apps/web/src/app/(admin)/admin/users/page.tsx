@@ -89,7 +89,7 @@ export default function AdminUsersPage() {
     try {
       const res = await fetch(`/api/admin/users/${userId}`, { method: "DELETE" });
       if (res.ok) {
-        setUsers(users.filter((u) => u.id !== userId));
+        setUsers(users.filter((u: AdminUser) => u.id !== userId));
         setActionSuccess(`Permanently deleted user ${userEmail}.`);
       } else {
         const err = await res.json();
@@ -120,7 +120,7 @@ export default function AdminUsersPage() {
 
       if (res.ok) {
         setUsers(
-          users.map((u) =>
+          users.map((u: AdminUser) =>
             u.id === userId ? { ...u, planCode: newPlan, creditBalance: newBalance } : u
           )
         );
@@ -135,7 +135,7 @@ export default function AdminUsersPage() {
   };
 
   const filteredUsers = users.filter(
-    (u) =>
+    (u: AdminUser) =>
       u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.displayName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.workspaceName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -243,7 +243,7 @@ export default function AdminUsersPage() {
           </div>
         ) : (
           <div className="border border-[#2E2B26] rounded-xl overflow-hidden divide-y divide-[#2E2B26] bg-[#121110]">
-            {filteredUsers.map((u) => (
+            {filteredUsers.map((u: AdminUser) => (
               <div key={u.id} className="p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
