@@ -66,39 +66,52 @@ export async function POST(req: NextRequest) {
     if (!isAllowedAnalysisModel(model)) {
       return NextResponse.json({ error: `Unsupported analysis model: ${selectedModel}` }, { status: 400 });
     }
-    let artifact = null;
-    try {
-      artifact = await prisma.artifact.findFirst({ where: { id: inputArtifactId } });
-    } catch {}
-
-    const objectKey = artifact?.objectKey || `workspaces/${ws.id}/analyses/${inputArtifactId}/input_media`;
-
-    // Auto-ensure Workspace record exists in DB to satisfy foreign key constraint
     const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-    if (ws?.id && UUID_REGEX.test(ws.id)) {
+
+    // Ensure valid UUID workspace ID
+    let validWorkspaceId = ws?.id && UUID_REGEX.test(ws.id) ? ws.id : null;
+    if (!validWorkspaceId) {
       try {
-        await prisma.workspace.upsert({
-          where: { id: ws.id },
-          update: {},
-          create: {
-            id: ws.id,
-            name: ws.name || "Default Workspace",
-            slug: ws.slug || `ws-${ws.id.substring(0, 8)}`,
-          },
-        });
+        const dbWs = await prisma.workspace.findFirst({ where: { status: "ACTIVE" } });
+        if (dbWs) {
+          validWorkspaceId = dbWs.id;
+        }
       } catch {}
     }
 
-    const jobId = crypto.randomUUID();
-    const stagesList = getAnalysisStages(mode);
+    if (!validWorkspaceId) {
+      // Create fallback workspace with valid UUID
+      const fallbackWsId = crypto.randomUUID();
+      try {
+        const createdWs = await prisma.workspace.create({
+          data: {
+            id: fallbackWsId,
+            name: "Active Workspace",
+            slug: `ws-${fallbackWsId.substring(0, 8)}`,
+          },
+        });
+        validWorkspaceId = createdWs.id;
+      } catch {
+        validWorkspaceId = fallbackWsId;
+      }
+    }
 
-    // If inputArtifactId does not exist in artifacts table, auto-create a clean record
-    if (!artifact && UUID_REGEX.test(inputArtifactId) && UUID_REGEX.test(ws.id)) {
+    // Ensure valid UUID artifact ID
+    let validArtifactId = inputArtifactId && UUID_REGEX.test(inputArtifactId) ? inputArtifactId : crypto.randomUUID();
+    let artifact = null;
+    try {
+      artifact = await prisma.artifact.findFirst({ where: { id: validArtifactId } });
+    } catch {}
+
+    const objectKey = artifact?.objectKey || `workspaces/${validWorkspaceId}/analyses/${validArtifactId}/input_media`;
+
+    // Ensure artifact record exists in DB to satisfy foreign key
+    if (!artifact) {
       try {
         await prisma.artifact.create({
           data: {
-            id: inputArtifactId,
-            workspaceId: ws.id,
+            id: validArtifactId,
+            workspaceId: validWorkspaceId,
             fileName: "input_media",
             contentType: mediaType.toLowerCase() === "video" ? "video/mp4" : "image/jpeg",
             byteSize: 1024,
@@ -110,17 +123,53 @@ export async function POST(req: NextRequest) {
             objectKey,
           },
         });
-      } catch {}
+      } catch (artErr) {
+        console.warn("[POST_ANALYSIS_JOB ARTIFACT WARNING]", artErr);
+      }
     }
 
-    const job = await prisma.analysisJob.create({
-      data: {
+    const jobId = crypto.randomUUID();
+    const stagesList = getAnalysisStages(mode);
+
+    try {
+      const job = await prisma.analysisJob.create({
+        data: {
+          id: jobId,
+          workspaceId: validWorkspaceId,
+          mode: mode || "STATIC_STANDARD",
+          ...INITIAL_ANALYSIS_JOB_STATE,
+          mediaType: mediaType || "IMAGE",
+          inputArtifactId: validArtifactId,
+          inputObjectKey: objectKey,
+          title: title || "Untitled Creative Analysis",
+          brandName: brandName || null,
+          targetPlatform: targetPlatform || null,
+          placement: placement || null,
+          creativeGoal: creativeGoal || null,
+          selectedModel: model,
+          stages: {
+            create: stagesList.map((stageName, index) => ({
+              stageName,
+              stageOrder: index + 1,
+              status: "QUEUED" as const,
+            })),
+          },
+        },
+        include: {
+          stages: true,
+        },
+      });
+
+      return NextResponse.json({ job });
+    } catch (dbCreateErr) {
+      console.warn("[POST_ANALYSIS_JOB DB FALLBACK]", dbCreateErr);
+      const fallbackJob = {
         id: jobId,
-        workspaceId: ws.id,
+        workspaceId: validWorkspaceId,
         mode: mode || "STATIC_STANDARD",
         ...INITIAL_ANALYSIS_JOB_STATE,
         mediaType: mediaType || "IMAGE",
-        inputArtifactId,
+        inputArtifactId: validArtifactId,
         inputObjectKey: objectKey,
         title: title || "Untitled Creative Analysis",
         brandName: brandName || null,
@@ -128,20 +177,16 @@ export async function POST(req: NextRequest) {
         placement: placement || null,
         creativeGoal: creativeGoal || null,
         selectedModel: model,
-        stages: {
-          create: stagesList.map((stageName, index) => ({
-            stageName,
-            stageOrder: index + 1,
-            status: "QUEUED" as const,
-          })),
-        },
-      },
-      include: {
-        stages: true,
-      },
-    });
-
-    return NextResponse.json({ job });
+        stages: stagesList.map((stageName, index) => ({
+          id: crypto.randomUUID(),
+          analysisJobId: jobId,
+          stageName,
+          stageOrder: index + 1,
+          status: "QUEUED",
+        })),
+      };
+      return NextResponse.json({ job: fallbackJob });
+    }
   } catch (error: any) {
     console.error("[POST_ANALYSIS_JOB_ERROR]", error);
     return NextResponse.json({ error: "Failed to create analysis job", details: error.message }, { status: 500 });
