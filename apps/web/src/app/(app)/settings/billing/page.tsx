@@ -86,7 +86,7 @@ export default function BillingSettingsPage() {
         <div className="mt-12 space-y-4">
           <h2 className="text-xl font-bold text-[#F3F2EF]">Available Plans</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {Object.values(PLANS).map((plan) => {
+            {Object.values(PLANS).map((plan: any) => {
               const isCurrent = activePlan === plan.code;
               return (
                 <div
@@ -108,7 +108,7 @@ export default function BillingSettingsPage() {
                       ${plan.monthlyPrice} <span className="text-sm font-normal text-[#8A867C]">/ mo</span>
                     </h3>
                     <ul className="mt-6 space-y-2 text-xs text-[#D4D1CA]">
-                      {plan.features.map((f, idx) => (
+                      {plan.features.map((f: string, idx: number) => (
                         <li key={idx} className="flex items-center gap-1.5">
                           <span className="text-[#5BD08C]">✓</span> {f}
                         </li>

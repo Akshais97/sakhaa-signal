@@ -34,7 +34,7 @@ async function fetchLogsFromS3(jobId: string): Promise<string[]> {
     const response = await s3Client.send(command);
     const bodyStr = await response.Body?.transformToString();
     if (bodyStr) {
-      return bodyStr.split("\n").map(l => l.trim()).filter(Boolean);
+      return bodyStr.split("\n").map((l: string) => l.trim()).filter(Boolean);
     }
   } catch (err) {
     console.error("[CONTROL API] Failed to download execution logs from S3:", err);
@@ -76,7 +76,7 @@ export async function GET(
     const localLogPath = path.join(process.cwd(), ".local/storage/v0-local-artifacts/exports", job_id, "execution_logs.txt");
     try {
       const logContent = await fs.readFile(localLogPath, "utf-8");
-      logs = logContent.split("\n").map(l => l.trim()).filter(Boolean);
+      logs = logContent.split("\n").map((l: string) => l.trim()).filter(Boolean);
     } catch (err) {
       // Local file not present, try downloading from S3/B2 in production
       const storageProvider = process.env.OBJECT_STORAGE_PROVIDER;
