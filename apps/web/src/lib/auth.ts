@@ -17,7 +17,9 @@ const EMAIL_ROLE_MAPPING: Record<
  * Retrieves the current authenticated user and workspace session.
  * Wrapped with React cache() to eliminate duplicate Supabase Auth network roundtrips during Next.js rendering.
  */
-export const getAuthenticatedSession = cache(async () => {
+const safeCache = typeof cache === "function" ? cache : <T extends (...args: any[]) => any>(fn: T) => fn;
+
+export const getAuthenticatedSession = safeCache(async () => {
   const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co",
