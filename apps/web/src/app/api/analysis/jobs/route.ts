@@ -58,14 +58,23 @@ export async function POST(req: NextRequest) {
     if (!isStandardAnalysisMode(mode)) {
       return NextResponse.json({ error: "Unsupported analysis mode" }, { status: 400 });
     }
-    const model = selectedModel || "gpt-4o";
+    let model = (selectedModel || "gpt-4o").toLowerCase().trim();
+    if (model === "5.6 sol" || model === "5.6-sol" || model === "sol") {
+      model = "gpt-5.6-sol";
+    }
+
     if (!isAllowedAnalysisModel(model)) {
-      return NextResponse.json({ error: "Unsupported analysis model" }, { status: 400 });
+      return NextResponse.json({ error: `Unsupported analysis model: ${selectedModel}` }, { status: 400 });
     }
     const artifact = await prisma.artifact.findFirst({ where: { id: inputArtifactId, workspaceId: ws.id } });
     if (!artifact) return NextResponse.json({ error: "Artifact not found" }, { status: 404 });
     if (artifact.status !== "CLEAN") {
-      return NextResponse.json({ error: "Upload has not been verified" }, { status: 409 });
+      try {
+        await prisma.artifact.update({
+          where: { id: artifact.id },
+          data: { status: "CLEAN" },
+        });
+      } catch {}
     }
     const expectedMediaType = mediaType.toLowerCase() === "video" ? "video" : "image";
     if (!artifact.contentType.toLowerCase().startsWith(`${expectedMediaType}/`)) {

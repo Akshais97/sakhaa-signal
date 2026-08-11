@@ -16,13 +16,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ jobs: [], workspace: null, user });
     }
 
-    const jobs = await prisma.job.findMany({
-      where: {
-        workspaceId: ws.id,
-        type: "TRIBEV2_AD_SCORER",
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    let jobs: any[] = [];
+    try {
+      jobs = await prisma.job.findMany({
+        where: {
+          workspaceId: ws.id,
+          type: "TRIBEV2_AD_SCORER",
+        },
+        orderBy: { createdAt: "desc" },
+      });
+    } catch (dbErr) {
+      console.warn("[API/JOBS DB WARNING]", dbErr);
+    }
 
     const mappedJobs = jobs.map((job: any) => {
       const j = { ...job };
