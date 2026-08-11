@@ -1,7 +1,7 @@
 import { PrismaClient } from "@sakhaa-forge/db";
 
 const globalForPrisma = globalThis as unknown as {
-  prisma: any;
+  prisma: PrismaClient | undefined;
 };
 
 function getDbUrl() {
