@@ -6,7 +6,8 @@ import { getAnalysisStages, INITIAL_ANALYSIS_JOB_STATE, isAllowedAnalysisModel, 
 
 export async function GET(req: NextRequest) {
   try {
-    const { user, workspace: ws } = await getAuthenticatedSession();
+    const { user, workspace }: any = await getAuthenticatedSession();
+    const ws: any = workspace;
     if (!user || !ws) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -28,7 +29,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { user, workspace: ws } = await getAuthenticatedSession();
+    const { user, workspace }: any = await getAuthenticatedSession();
+    const ws: any = workspace;
     if (!user || !ws) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

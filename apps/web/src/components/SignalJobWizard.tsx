@@ -197,7 +197,7 @@ export default function SignalJobWizard({ isOpen, onClose, onJobCreated }: Signa
               Analysis mode
             </label>
             <div className="grid grid-cols-2 gap-3">
-              {MODE_OPTIONS.map(({ key, label, desc, Icon }) => {
+              {MODE_OPTIONS.map(({ key, label, desc, Icon }: any) => {
                 const selected = mode === key;
                 return (
                   <button
