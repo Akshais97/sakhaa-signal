@@ -6,6 +6,7 @@
   "scripts": {
     "build:dependencies": "pnpm --filter @sakhaa-forge/db generate && pnpm --filter @sakhaa-forge/contracts build && pnpm --filter @sakhaa-signal/engines build",
     "build": "pnpm run build:dependencies && tsc -p tsconfig.json",
+    "test": "tsx --test src/storage/b2-adapter.test.ts",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts"
   },

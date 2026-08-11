@@ -3,7 +3,7 @@
     "corsRuleName": "quarantine-upload-local-prod",
     "allowedOrigins": [
       "http://localhost:3000",
-      "https://YOUR-VERCEL-DOMAIN.vercel.app"
+      "https://sakhaa-signal.vercel.app"
     ],
     "allowedHeaders": ["*"],
     "allowedOperations": [

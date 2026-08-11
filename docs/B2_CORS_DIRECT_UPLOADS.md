@@ -29,13 +29,13 @@ Enter the key ID and application key when prompted.
 
 ## 2. Set the production origin
 
-Open `b2-cors-rules.json` in the repository root and replace:
+The production origin configured in `b2-cors-rules.json` is:
 
 ```text
-https://YOUR-VERCEL-DOMAIN.vercel.app
+https://sakhaa-signal.vercel.app
 ```
 
-with the exact deployed frontend origin. Do not include a path or trailing slash.
+Origins must not include a path or trailing slash.
 
 Validate the JSON before changing the bucket:
 
@@ -108,6 +108,7 @@ The response should be successful and include `Access-Control-Allow-Origin` for 
 ## Troubleshooting
 
 - `unauthorized` or `not_capable`: authorize with a key that includes `writeBuckets`.
+- `403 not entitled` after a successful preflight: inspect the application key's file-name prefix. This app uploads under `workspaces/`, so a key restricted to another prefix cannot upload even when CORS is correct.
 - `bad_request`: validate the JSON and confirm the PowerShell 5 quote escaping.
 - Preflight still returns `403`: confirm the rule was applied to `dockerize-sakhaa-forge-quarantine`, not the private-artifacts bucket.
 - Do not use the Backblaze “share with all HTTPS origins” preset. It creates a download-oriented rule and does not match localhost HTTP uploads.

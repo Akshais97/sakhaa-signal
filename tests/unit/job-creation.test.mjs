@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import { loadApiEnv } from "../helpers/env.mjs";
 import { PrismaClient } from "../../packages/db/generated/client/index.js";
+
+loadApiEnv();
 
 test("Database Schema — AnalysisJob creation with ordered AnalysisStage records", async () => {
   const prisma = new PrismaClient();

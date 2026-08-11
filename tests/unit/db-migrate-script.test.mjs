@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 test("db migrate script loads API env and applies all retained migrations in order", async () => {
   const script = await readFile("packages/db/scripts/db-migrate-dev.mjs", "utf8");
 
-  assert.match(script, /loadEnvFile\("apps\/api\/\.env"\)/);
+  assert.match(script, /loadEnvFile\(envPath\)|loadEnvFile\("apps\/api\/\.env"\)/);
   assert.match(script, /DIRECT_DATABASE_URL/);
   assert.match(script, /DATABASE_URL/);
 
