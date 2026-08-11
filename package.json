@@ -10,6 +10,8 @@
   },
   "scripts": {
     "build": "pnpm --filter @sakhaa-forge/contracts build && pnpm db:generate && pnpm --filter web build",
+    "build:cpu": "pnpm --filter signal-cpu-worker build",
+    "start:cpu": "pnpm --filter signal-cpu-worker start",
     "dev": "node scripts/dev.mjs",
     "dev:web": "pnpm --filter web dev",
     "dev:gpu": "node scripts/dev-gpu.mjs",
