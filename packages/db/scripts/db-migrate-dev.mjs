@@ -65,6 +65,10 @@ const migrations = [
   {
     path: "packages/db/prisma/migrations/0015_v0_p5_ready_blueprint_formula_prompt/migration.sql",
     sentinel: "SELECT to_regclass('public.formula_derivations') IS NOT NULL AND to_regclass('public.director_prompts') IS NOT NULL"
+  },
+  {
+    path: "packages/db/prisma/migrations/0016_signal_analysis/migration.sql",
+    sentinel: "SELECT to_regclass('public.analysis_jobs') IS NOT NULL AND to_regclass('public.report_artifacts') IS NOT NULL AND (to_regclass('auth.users') IS NULL OR EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'sync_auth_user_to_public_users'))"
   }
 ];
 
@@ -79,7 +83,7 @@ const databaseUrl = process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL;
 
 if (!databaseUrl) {
   console.log(
-    "V0-F1/F2/F3/F4/F5/B1/B2/B3/P1/P2/P3/P4/P5 db:migrate:dev dry-run: DIRECT_DATABASE_URL and DATABASE_URL are not set; migration SQL validated but not applied."
+    "Migrations 0001-0016 dry-run: DIRECT_DATABASE_URL and DATABASE_URL are not set; migration SQL validated but not applied."
   );
   process.exit(0);
 }
@@ -114,7 +118,7 @@ for (const migration of migrations) {
   }
 }
 
-console.log("V0-F1/F2/F3/F4/F5/B1/B2/B3/P1/P2/P3/P4/P5 migrations applied.");
+console.log("Migrations 0001-0016 applied.");
 
 function isMigrationApplied(psqlCommand, databaseUrl, sentinel) {
   const result = spawnSync(psqlCommand, [databaseUrl, "-t", "-A", "-v", "ON_ERROR_STOP=1", "-c", sentinel], {
@@ -127,11 +131,13 @@ function isMigrationApplied(psqlCommand, databaseUrl, sentinel) {
 }
 
 function loadApiEnv() {
-  try {
-    loadEnvFile("apps/api/.env");
-  } catch (error) {
-    if (error?.code !== "ENOENT") {
-      throw error;
+  for (const envPath of ["apps/web/.env", "apps/api/.env", ".env"]) {
+    try {
+      loadEnvFile(envPath);
+    } catch (error) {
+      if (error?.code !== "ENOENT") {
+        throw error;
+      }
     }
   }
 }

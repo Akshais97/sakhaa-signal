@@ -12,6 +12,10 @@ import {
 } from "@/lib/storageUtils";
 
 export async function PUT(req: NextRequest) {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Upload proxy is disabled in production" }, { status: 404 });
+  }
+
   try {
     const { user, workspace: ws } = await getAuthenticatedSession();
     if (!user || !ws) {
@@ -112,15 +116,8 @@ export async function PUT(req: NextRequest) {
       }
     }
 
-    // Skip local filesystem writes if S3/B2 upload succeeded or if running in production (Vercel ephemeral filesystem)
+    // This route is development-only, so local storage is an acceptable fallback.
     if (!uploadedToS3) {
-      if (process.env.NODE_ENV === "production") {
-        return NextResponse.json(
-          { error: "Storage upload failed and local filesystem fallback is disabled in production environment." },
-          { status: 500 }
-        );
-      }
-
       // Local development fallback: write to local storage simulator only when offline/dev
       const storageRoots = [
         path.resolve(process.cwd(), ".local", "storage", "v0-local-quarantine"),

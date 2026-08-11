@@ -32,7 +32,7 @@ export interface VideoIntelligenceResult {
 }
 
 export async function analyzeVideoWithIntelligence(
-  videoBuffer: Buffer,
+  videoInput: Buffer | string,
   durationMs: number = 15000
 ): Promise<VideoIntelligenceResult> {
   const hasCredentials = process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GOOGLE_VIDEO_INTELLIGENCE_API_KEY;
@@ -43,6 +43,9 @@ export async function analyzeVideoWithIntelligence(
   }
 
   try {
+    const videoBuffer = typeof videoInput === "string"
+      ? await import("node:fs/promises").then(({ readFile }) => readFile(videoInput))
+      : videoInput;
     // Dynamic import to avoid missing module errors if optional dependency is omitted
     // @ts-ignore
     const videoIntel = await import("@google-cloud/video-intelligence");
@@ -119,4 +122,3 @@ function getEmptyVideoIntelligenceResult(): VideoIntelligenceResult {
     provider: "FALLBACK_ENGINE",
   };
 }
-

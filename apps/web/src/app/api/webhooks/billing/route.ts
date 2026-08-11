@@ -1,9 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { PLANS } from "@/lib/billing";
+import crypto from "node:crypto";
 
 export async function POST(req: NextRequest) {
   try {
+    const secret = process.env.BILLING_WEBHOOK_SECRET;
+    const supplied = req.headers.get("x-billing-webhook-secret") || "";
+    if (!secret) {
+      return NextResponse.json({ error: "Billing webhook is not configured" }, { status: 503 });
+    }
+    const expectedBuffer = Buffer.from(secret);
+    const suppliedBuffer = Buffer.from(supplied);
+    if (expectedBuffer.length !== suppliedBuffer.length || !crypto.timingSafeEqual(expectedBuffer, suppliedBuffer)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await req.json();
     const eventType = body.type || "checkout.session.completed";
 

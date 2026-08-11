@@ -2,14 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
+  ALLOWED_ANALYSIS_MODELS,
   getAnalysisStages,
   INITIAL_ANALYSIS_JOB_STATE,
-} from "../../apps/web/src/lib/analysis-job-config.ts";
+} from "../../packages/contracts/src/analysis-stages.ts";
 
 test("new standard analysis jobs enter the worker's eligible queue", () => {
   assert.deepEqual(INITIAL_ANALYSIS_JOB_STATE, {
     status: "QUEUED",
-    currentStage: "QUEUED",
+    currentStage: "DOWNLOAD_AND_VALIDATE",
     progressPercent: 0,
   });
 });
@@ -53,10 +54,33 @@ test("static OpenAI vision calls have bounded latency and explicit reasoning", (
   assert.match(visionSource, /reasoning_effort = "none"/);
 });
 
-test("analysis API falls back to a valid vision model", () => {
+test("analysis API validates a server-owned vision model allowlist", () => {
+  assert.deepEqual(ALLOWED_ANALYSIS_MODELS, ["gpt-4o", "gpt-5.6-sol", "gpt-4o-mini"]);
   const routeSource = readFileSync(
     "apps/web/src/app/api/analysis/jobs/route.ts",
     "utf8"
   );
-  assert.match(routeSource, /selectedModel: selectedModel \|\| "gpt-4o"/);
+  assert.match(routeSource, /isAllowedAnalysisModel\(model\)/);
+  assert.match(routeSource, /selectedModel: model/);
+});
+
+test("worker heartbeats active leases and streams B2 downloads", () => {
+  const workerSource = readFileSync("workers/cpu/src/index.ts", "utf8");
+  const storageSource = readFileSync("workers/cpu/src/storage/b2-adapter.ts", "utf8");
+  assert.match(workerSource, /LEASE_HEARTBEAT_MS/);
+  assert.match(workerSource, /Promise\.all/);
+  assert.doesNotMatch(workerSource, /job\.mode === "FULL_WITH_TRIBEV2"/);
+  assert.match(storageSource, /pipeline\(response\.Body/);
+  assert.doesNotMatch(storageSource, /Buffer\.concat\(chunks\)/);
+});
+
+test("production upload and artifact view routes use signed B2 URLs", () => {
+  const presignSource = readFileSync("apps/web/src/app/api/uploads/presign/route.ts", "utf8");
+  const completionSource = readFileSync("apps/web/src/app/api/uploads/complete/route.ts", "utf8");
+  const viewSource = readFileSync("apps/web/src/app/api/artifacts/[artifactId]/view/route.ts", "utf8");
+  assert.match(presignSource, /PutObjectCommand/);
+  assert.match(completionSource, /HeadObjectCommand/);
+  assert.match(completionSource, /status: "CLEAN"/);
+  assert.match(viewSource, /GetObjectCommand/);
+  assert.match(viewSource, /NextResponse\.redirect/);
 });

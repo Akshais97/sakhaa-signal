@@ -34,7 +34,7 @@ export type PresignUploadRequest = z.infer<typeof PresignUploadRequestSchema>;
 
 export const CreateAnalysisJobRequestSchema = z.object({
   title: z.string().max(240).optional(),
-  mode: AnalysisModeSchema,
+  mode: z.enum(["STATIC_STANDARD", "VIDEO_STANDARD"]),
   inputArtifactId: z.string().uuid(),
   inputObjectKey: z.string().min(1),
   mediaType: z.enum(["image", "video"]),
@@ -42,7 +42,7 @@ export const CreateAnalysisJobRequestSchema = z.object({
   targetPlatform: z.enum(["STATIC_META", "STATIC_GOOGLE", "META", "INSTAGRAM_REELS", "YOUTUBE", "TIKTOK", "LINKEDIN", "GENERIC"]).optional(),
   placement: z.enum(["FEED", "STORY", "REEL", "SHORTS", "PRE_ROLL", "GENERIC"]).optional(),
   creativeGoal: z.string().max(240).optional(),
-  selectedModel: z.string().max(80).optional(),
+  selectedModel: z.enum(["gpt-4o", "gpt-5.6-sol", "gpt-4o-mini"]).optional(),
 });
 
 export type CreateAnalysisJobRequest = z.infer<typeof CreateAnalysisJobRequestSchema>;

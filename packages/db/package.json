@@ -5,7 +5,16 @@
   "type": "module",
   "main": "./generated/client/index.js",
   "types": "./generated/client/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./generated/client/index.d.ts",
+      "import": "./generated/client/index.js",
+      "default": "./generated/client/index.js"
+    }
+  },
   "scripts": {
+    "build": "node scripts/db-generate.mjs",
+    "postinstall": "node scripts/db-generate.mjs",
     "generate": "node scripts/db-generate.mjs",
     "db:push": "node scripts/db-push.mjs",
     "migrate:dev": "node scripts/db-migrate-dev.mjs",

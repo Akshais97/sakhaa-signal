@@ -1,15 +1,49 @@
 import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { writeFile, mkdir, copyFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
+import { createWriteStream } from "node:fs";
+import { pipeline } from "node:stream/promises";
+
+type StorageClient = {
+  send(command: GetObjectCommand | PutObjectCommand): Promise<any>;
+};
+
+type StorageAdapterOptions = {
+  provider?: string;
+  s3Client?: StorageClient;
+};
+
+function getHttpStatusCode(error: unknown): number | undefined {
+  if (!error || typeof error !== "object") return undefined;
+  const metadata = "$metadata" in error ? (error as { $metadata?: { httpStatusCode?: number } }).$metadata : undefined;
+  return metadata?.httpStatusCode;
+}
+
+function isMissingObjectError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const name = "name" in error ? String((error as { name?: unknown }).name) : "";
+  return getHttpStatusCode(error) === 404 || name === "NoSuchKey" || name === "NotFound";
+}
+
+function describeStorageError(error: unknown): string {
+  const statusCode = getHttpStatusCode(error);
+  const message = error instanceof Error ? error.message : String(error);
+  return statusCode ? `HTTP ${statusCode}: ${message}` : message;
+}
 
 export class StorageAdapter {
-  private s3Client?: S3Client;
+  private s3Client?: StorageClient;
   private provider: string;
 
-  constructor() {
-    this.provider = process.env.OBJECT_STORAGE_PROVIDER || "local-filesystem";
+  constructor(options: StorageAdapterOptions = {}) {
+    this.provider = options.provider || process.env.OBJECT_STORAGE_PROVIDER || "local-filesystem";
+    if (options.s3Client) {
+      this.s3Client = options.s3Client;
+      return;
+    }
+
     if ((this.provider === "b2" || this.provider === "s3") && process.env.AWS_ACCESS_KEY_ID) {
       this.s3Client = new S3Client({
         region: process.env.AWS_DEFAULT_REGION || process.env.OBJECT_STORAGE_REGION || "eu-central-003",
@@ -36,16 +70,17 @@ export class StorageAdapter {
 
         const response = await this.s3Client.send(command);
         if (response.Body) {
-          const stream = response.Body as Readable;
-          const chunks: Buffer[] = [];
-          for await (const chunk of stream) {
-            chunks.push(Buffer.from(chunk));
-          }
-          await writeFile(destLocalPath, Buffer.concat(chunks));
+          await pipeline(response.Body as Readable, createWriteStream(destLocalPath));
           return;
         }
-      } catch (err: any) {
-        console.warn(`[STORAGE_WARNING] S3/B2 download failed (${err.message}). Checking local storage simulator fallback...`);
+      } catch (error: unknown) {
+        if (!isMissingObjectError(error)) {
+          throw new Error(
+            `S3/B2 download failed for media object "${objectKey}" (${describeStorageError(error)}).`,
+            { cause: error },
+          );
+        }
+        console.warn(`[STORAGE_WARNING] Media object "${objectKey}" was not found in S3/B2. Checking local storage simulator fallback...`);
       }
     }
 
@@ -70,8 +105,7 @@ export class StorageAdapter {
       throw new Error(`Media object key "${objectKey}" not found in S3/B2 or local storage.`);
     }
 
-    const data = await readFile(foundPath);
-    await writeFile(destLocalPath, data);
+    await copyFile(foundPath, destLocalPath);
   }
 
   async uploadArtifactBuffer(buffer: Buffer, objectKey: string, contentType: string): Promise<string> {

@@ -64,11 +64,17 @@ export default function StaticReport({ job: initialJob }: StaticReportProps) {
 
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/analysis/jobs/${initialJob.id}`);
+        const res = await fetch(`/api/analysis/jobs/${initialJob.id}/status`, { cache: "no-store" });
         if (res.ok) {
-          const { job: freshJob } = await res.json();
-          if (freshJob) {
-            setJobData(freshJob);
+          const status = await res.json();
+          if (status.status === "SUCCEEDED") {
+            const reportRes = await fetch(`/api/analysis/jobs/${initialJob.id}/report`, { cache: "no-store" });
+            if (reportRes.ok) {
+              const { job: completedJob } = await reportRes.json();
+              setJobData(completedJob);
+            }
+          } else {
+            setJobData((current: any) => ({ ...current, ...status }));
           }
         }
       } catch (e) {}

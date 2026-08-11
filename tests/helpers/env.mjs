@@ -1,22 +1,16 @@
-import { readFileSync, existsSync } from "node:fs";
+import { loadEnvFile } from "node:process";
+import { existsSync } from "node:fs";
 
 export function loadApiEnv() {
-  return loadEnvFile("apps/api/.env");
-}
-
-function loadEnvFile(path) {
-  const env = {};
-  if (!existsSync(path)) {
-    return env;
-  }
-
-  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
-    const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-    if (!match) {
-      continue;
+  for (const envPath of ["apps/api/.env", "apps/web/.env", ".env"]) {
+    if (existsSync(envPath)) {
+      try {
+        loadEnvFile(envPath);
+      } catch (error) {
+        if (error?.code !== "ENOENT") {
+          throw error;
+        }
+      }
     }
-    const [, key, rawValue] = match;
-    env[key] = rawValue.trim().replace(/^"|"$/g, "");
   }
-  return env;
 }
