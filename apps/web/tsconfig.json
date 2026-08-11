@@ -20,8 +20,8 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
-      "@sakhaa-forge/contracts": ["../../packages/contracts/dist/index.d.ts"],
-      "@sakhaa-forge/db": ["../../packages/db/generated/client/index.d.ts"]
+      "@sakhaa-forge/contracts": ["../../packages/contracts/dist/index.js"],
+      "@sakhaa-forge/db": ["../../packages/db/generated/client/index.js"]
     }
   },
   "include": [
