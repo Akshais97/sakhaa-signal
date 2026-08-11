@@ -61,7 +61,12 @@ export async function analyzeStaticCreativeWithOpenAI(
   const apiKey = getFreshOpenAIApiKey();
 
   const rawModel = (modelName && modelName.trim()) ? modelName.trim() : (process.env.OPENAI_MODEL || "gpt-4o");
-  const selectedModel = (rawModel.includes("5.6") || rawModel.includes("sol")) ? (process.env.OPENAI_MODEL || "gpt-4o") : rawModel;
+  const selectedModel =
+    process.env.OPENAI_SOL_MODEL && (rawModel.includes("5.6") || rawModel.includes("sol"))
+      ? process.env.OPENAI_SOL_MODEL
+      : (rawModel.includes("5.6") || rawModel.includes("sol"))
+        ? (process.env.OPENAI_MODEL || "gpt-4o")
+        : rawModel;
   console.log(`[OPENAI_VISION] Initiating Sakhaa Signal creative extraction with model: ${selectedModel} (requested: ${modelName || "default"})`);
 
   if (!apiKey || apiKey.trim() === "" || apiKey === "local-openai-placeholder") {

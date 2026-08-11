@@ -69,9 +69,7 @@ async function claimEligibleJob() {
 
   const eligible = await prisma.analysisJob.findFirst({
     where: {
-      mode: { in: ["STATIC_STANDARD", "VIDEO_STANDARD"] },
       OR: [
-        // Recover analysis jobs created during the 2026-08 queue regression.
         { status: "CREATED" },
         { status: "QUEUED" },
         { status: "LEASED", leaseExpiresAt: { lt: now } },
@@ -83,10 +81,12 @@ async function claimEligibleJob() {
 
   if (!eligible) return null;
 
+  console.log(`[SIGNAL_CPU_WORKER] Found queued analysis job: ${eligible.id} (${eligible.mode || "STATIC_STANDARD"}). Claiming lease...`);
+
   const updatedCount = await prisma.analysisJob.updateMany({
     where: {
       id: eligible.id,
-      updatedAt: eligible.updatedAt,
+      status: eligible.status,
     },
     data: {
       status: "LEASED",
@@ -97,7 +97,10 @@ async function claimEligibleJob() {
     },
   });
 
-  if (updatedCount.count === 0) return null;
+  if (updatedCount.count === 0) {
+    console.warn(`[SIGNAL_CPU_WORKER] Lease contention for job: ${eligible.id}`);
+    return null;
+  }
 
   return prisma.analysisJob.findUnique({
     where: { id: eligible.id },
