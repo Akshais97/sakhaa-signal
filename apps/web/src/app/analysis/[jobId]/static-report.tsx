@@ -231,6 +231,29 @@ export default function StaticReport({ job: initialJob }: StaticReportProps) {
           </div>
         )}
 
+        {/* Error State Screen */}
+        {jobData.status === "FAILED" && (
+          <div className="p-8 bg-[#1A1110] border border-[#F2786C]/40 rounded-md space-y-4 text-center">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[#F2786C]/10 border border-[#F2786C]/30 text-[#F2786C]">
+              <IconAlert className="h-6 w-6" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-[#F2786C]">Analysis Execution Encountered an Issue</h3>
+              <p className="text-sm text-graphite-secondary mt-1 font-mono max-w-lg mx-auto">
+                {jobData.errorMessage || "Diagnostic engine encountered an unhandled exception during visual processing."}
+              </p>
+            </div>
+            <div className="pt-2">
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center px-4 py-2 text-sm font-medium bg-[#2E2B26] hover:bg-[#3A3630] text-graphite-primary border border-graphite-subtle rounded-md transition-colors"
+              >
+                Back to dashboard
+              </Link>
+            </div>
+          </div>
+        )}
+
         {/* Live Processing Screen */}
         {isProcessing && (
           <div className="p-8 bg-graphite-sunken border border-iris-primary/20 rounded-md text-center space-y-4">
