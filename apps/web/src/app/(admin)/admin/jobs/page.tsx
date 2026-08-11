@@ -20,7 +20,7 @@ export default async function AdminJobsPage() {
       </div>
 
       <div className="border border-[#2E2B26] rounded-xl overflow-hidden bg-[#121110] divide-y divide-[#2E2B26]">
-        {jobs.map((job) => (
+        {jobs.map((job: any) => (
           <div key={job.id} className="p-6 space-y-3">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
               <div>

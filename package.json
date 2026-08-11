@@ -33,9 +33,7 @@
   },
   "devDependencies": {
     "chromedriver": "^151.0.1",
-    "selenium-webdriver": "^4.46.0"
-  },
-  "prisma": {
-    "schema": "packages/db/prisma/schema.prisma"
+    "selenium-webdriver": "^4.46.0",
+    "turbo": "^2.4.4"
   }
 }

@@ -55,7 +55,7 @@ export default async function AdminOverviewPage() {
         </div>
 
         <div className="border border-[#2E2B26] rounded-xl overflow-hidden bg-[#121110] divide-y divide-[#2E2B26]">
-          {recentJobs.map((job) => (
+          {recentJobs.map((job: any) => (
             <div key={job.id} className="p-4 flex items-center justify-between text-sm">
               <div>
                 <p className="font-semibold text-[#F3F2EF]">{job.title || "Untitled Job"}</p>
