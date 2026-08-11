@@ -9,7 +9,6 @@
     "pnpm": ">=11 <12"
   },
   "scripts": {
-    "postinstall": "pnpm --filter @sakhaa-forge/contracts build && pnpm db:generate",
     "build": "pnpm --filter @sakhaa-forge/contracts build && pnpm db:generate && pnpm --filter web build",
     "dev": "node scripts/dev.mjs",
     "dev:web": "pnpm --filter web dev",
