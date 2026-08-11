@@ -562,4 +562,65 @@ async function workerLoop() {
   }
 }
 
+// HTTP Dispatcher & Health Server for Railway
+import http from "node:http";
+
+const PORT = Number(process.env.PORT || 8000);
+const server = http.createServer(async (req, res) => {
+  res.setHeader("Content-Type", "application/json");
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  if (req.method === "OPTIONS") {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  const url = req.url || "/";
+  if (url === "/health" || url === "/api/gpu/health" || url === "/api/cpu/health") {
+    res.writeHead(200);
+    res.end(JSON.stringify({ status: "ok", workerId: WORKER_ID, uptimeSeconds: Math.floor(process.uptime()) }));
+    return;
+  }
+
+  if ((url === "/api/cpu/jobs/run" || url === "/api/gpu/jobs/run") && req.method === "POST") {
+    let bodyStr = "";
+    req.on("data", (chunk) => { bodyStr += chunk; });
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(bodyStr || "{}");
+        const jobId = payload.job_id || payload.jobId;
+        console.log(`[SIGNAL_CPU_WORKER] Direct HTTP dispatch trigger received for job: ${jobId || "direct"}`);
+
+        res.writeHead(202);
+        res.end(JSON.stringify({ success: true, message: "Job dispatch accepted", jobId }));
+
+        if (jobId) {
+          try {
+            const job = await prisma.analysisJob.findUnique({ where: { id: jobId } });
+            if (job) {
+              void processJob(job);
+            }
+          } catch (jobErr) {
+            console.warn("[SIGNAL_CPU_WORKER] HTTP job fetch warning:", jobErr);
+          }
+        }
+      } catch (err: any) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: "Invalid job dispatch payload", details: err.message }));
+      }
+    });
+    return;
+  }
+
+  res.writeHead(404);
+  res.end(JSON.stringify({ error: "Endpoint not found" }));
+});
+
+server.listen(PORT, () => {
+  console.log(`[SIGNAL_CPU_WORKER] HTTP Dispatcher & Health Server listening on port ${PORT}`);
+});
+
 workerLoop();

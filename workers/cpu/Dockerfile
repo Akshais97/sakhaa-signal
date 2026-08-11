@@ -1,4 +1,4 @@
-FROM node:24-slim AS base
+FROM node:22-slim AS base
 
 # Install system dependencies (ffmpeg, ffprobe, openssl)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install pnpm
-RUN npm install -g pnpm@11.7.0
+RUN npm install -g pnpm@9.15.5
 
 WORKDIR /app
 
@@ -32,6 +32,7 @@ RUN pnpm --filter @sakhaa-signal/engines build
 RUN pnpm --filter signal-cpu-worker build
 
 ENV NODE_ENV=production
+ENV NODE_OPTIONS="--no-deprecation"
 ENV FFMPEG_PATH=/usr/bin/ffmpeg
 ENV FFPROBE_PATH=/usr/bin/ffprobe
 

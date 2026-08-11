@@ -160,6 +160,16 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      // Non-blocking trigger to CPU worker HTTP endpoint if configured
+      const workerUrl = process.env.SIGNAL_CPU_WORKER_URL || process.env.RAILWAY_CPU_WORKER_URL;
+      if (workerUrl) {
+        void fetch(`${workerUrl.replace(/\/$/, "")}/api/cpu/jobs/run`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobId, job }),
+        }).catch((err) => console.warn("[WORKER_HTTP_TRIGGER_WARNING]", err));
+      }
+
       return NextResponse.json({ job });
     } catch (dbCreateErr) {
       console.warn("[POST_ANALYSIS_JOB DB FALLBACK]", dbCreateErr);
@@ -185,6 +195,17 @@ export async function POST(req: NextRequest) {
           status: "QUEUED",
         })),
       };
+
+      // Also trigger HTTP worker for fallback job payload
+      const workerUrl = process.env.SIGNAL_CPU_WORKER_URL || process.env.RAILWAY_CPU_WORKER_URL;
+      if (workerUrl) {
+        void fetch(`${workerUrl.replace(/\/$/, "")}/api/cpu/jobs/run`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobId, job: fallbackJob }),
+        }).catch((err) => console.warn("[WORKER_HTTP_TRIGGER_WARNING]", err));
+      }
+
       return NextResponse.json({ job: fallbackJob });
     }
   } catch (error: any) {
