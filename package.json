@@ -33,7 +33,6 @@
   },
   "devDependencies": {
     "chromedriver": "^151.0.1",
-    "selenium-webdriver": "^4.46.0",
-    "turbo": "^2.4.4"
+    "selenium-webdriver": "^4.46.0"
   }
 }
