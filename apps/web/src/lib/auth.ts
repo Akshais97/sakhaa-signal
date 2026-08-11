@@ -22,8 +22,8 @@ const safeCache = typeof cache === "function" ? cache : <T extends (...args: any
 export const getAuthenticatedSession = safeCache(async () => {
   const cookieStore = await cookies();
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co",
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-anon-key",
+    process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "https://placeholder.supabase.co",
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "placeholder-anon-key",
     {
       cookies: {
         getAll() {
@@ -91,30 +91,34 @@ export const getAuthenticatedSession = safeCache(async () => {
   }
 
   let isPlatformAdmin = false;
-  let ws = null;
+  let ws: any = null;
 
   try {
     // Ensure the auth identity exists locally, but only write when it changed.
     const incomingEmail = user.email || null;
-    const existingUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: { email: true },
-    });
-    if (!existingUser) {
-      await prisma.user.upsert({
+    try {
+      const existingUser = await prisma.user.findUnique({
         where: { id: user.id },
-        update: {},
-        create: {
-          id: user.id,
-          email: incomingEmail,
-          displayName: user.user_metadata?.full_name || user.email?.split("@")[0] || null,
-        },
+        select: { email: true },
       });
-    } else if (existingUser.email !== incomingEmail) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { email: incomingEmail },
-      });
+      if (!existingUser) {
+        await prisma.user.upsert({
+          where: { id: user.id },
+          update: {},
+          create: {
+            id: user.id,
+            email: incomingEmail,
+            displayName: user.user_metadata?.full_name || user.email?.split("@")[0] || null,
+          },
+        });
+      } else if (existingUser.email !== incomingEmail) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { email: incomingEmail },
+        });
+      }
+    } catch (userDbErr) {
+      console.warn("[AUTH USER SYNC WARNING]", userDbErr);
     }
 
     const emailLower = user.email?.toLowerCase() || "";
@@ -123,38 +127,37 @@ export const getAuthenticatedSession = safeCache(async () => {
     // Auto-provision PlatformAdmin if email is marked as platform admin
     let platformAdminRecord = null;
     if (roleConfig?.isPlatformAdmin) {
-      platformAdminRecord = await prisma.platformAdmin.findUnique({
-        where: { userId: user.id },
-      });
-      if (!platformAdminRecord) {
-        platformAdminRecord = await prisma.platformAdmin.upsert({
+      try {
+        platformAdminRecord = await prisma.platformAdmin.findUnique({
           where: { userId: user.id },
-          update: {},
-          create: { userId: user.id, role: "SUPER_ADMIN", status: "ACTIVE" },
         });
-      } else if (platformAdminRecord.role !== "SUPER_ADMIN" || platformAdminRecord.status !== "ACTIVE") {
-        platformAdminRecord = await prisma.platformAdmin.update({
-          where: { userId: user.id },
-          data: { role: "SUPER_ADMIN", status: "ACTIVE" },
-        });
-      }
-    } else {
-      platformAdminRecord = await prisma.platformAdmin.findUnique({
-        where: { userId: user.id },
-      });
+        if (!platformAdminRecord) {
+          platformAdminRecord = await prisma.platformAdmin.upsert({
+            where: { userId: user.id },
+            update: {},
+            create: { userId: user.id, role: "SUPER_ADMIN", status: "ACTIVE" },
+          });
+        }
+      } catch {}
     }
 
     isPlatformAdmin = !!platformAdminRecord || !!roleConfig?.isPlatformAdmin;
 
-    const workspaceId = cookieStore.get("workspace-id")?.value;
+    // Validate workspace-id cookie to ensure it is a valid UUID before querying DB
+    const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    const rawWorkspaceId = cookieStore.get("workspace-id")?.value;
+    const workspaceId = rawWorkspaceId && UUID_REGEX.test(rawWorkspaceId) ? rawWorkspaceId : null;
+
     if (workspaceId) {
-      ws = await prisma.workspace.findFirst({
-        where: {
-          id: workspaceId,
-          status: "ACTIVE",
-          memberships: { some: { userId: user.id } },
-        },
-      });
+      try {
+        ws = await prisma.workspace.findFirst({
+          where: {
+            id: workspaceId,
+            status: "ACTIVE",
+            memberships: { some: { userId: user.id } },
+          },
+        });
+      } catch {}
     }
 
     if (!ws) {

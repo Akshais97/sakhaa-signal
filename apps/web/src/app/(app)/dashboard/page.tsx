@@ -111,11 +111,20 @@ export default function DashboardPage() {
 
   const fetchJobs = async () => {
     try {
+      // First fetch current user profile & workspace metadata from /api/me
+      const meRes = await fetch("/api/me");
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        if (meData.user) setUser(meData.user);
+        if (meData.workspace) setWorkspace(meData.workspace);
+      }
+
+      // Then fetch jobs list
       const response = await fetch("/api/jobs");
       if (response.ok) {
         const data = await response.json();
-        setJobs(data.jobs);
-        setWorkspace(data.workspace);
+        setJobs(data.jobs || []);
+        if (data.workspace) setWorkspace(data.workspace);
         if (data.user) setUser(data.user);
       }
     } catch (error) {
