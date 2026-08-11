@@ -47,7 +47,8 @@ export async function GET(
   { params }: { params: Promise<{ job_id: string }> }
 ) {
   try {
-    const { user, workspace: ws } = await getAuthenticatedSession();
+    const { user, workspace }: any = await getAuthenticatedSession();
+    const ws: any = workspace;
     if (!user || !ws) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -98,7 +99,7 @@ export async function GET(
           const workerData = await response.json();
           const workerStatus = workerData.status;
 
-          let dbStatus: JobStatus = job.status;
+          let dbStatus: any = job.status;
           let lastErrorCode = job.lastErrorCode;
 
           if (workerStatus === "COMPLETED") {

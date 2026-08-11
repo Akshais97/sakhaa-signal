@@ -48,7 +48,7 @@ export async function POST(
     }
 
     // 4. Map worker state to Prisma JobStatus
-    let dbStatus: JobStatus = job.status;
+    let dbStatus: any = job.status;
     let lastErrorCode = job.lastErrorCode;
 
     if (workerStatus === "COMPLETED") {
