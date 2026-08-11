@@ -3,10 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "description": "Sakhaa Forge V0 walking skeleton.",
-  "packageManager": "pnpm@10.5.2",
+  "packageManager": "pnpm@9.15.5",
   "engines": {
     "node": ">=20.0.0",
-    "pnpm": ">=9.0.0"
+    "pnpm": ">=9.0.0 <10.0.0"
   },
   "scripts": {
     "build": "pnpm --filter @sakhaa-forge/contracts build && pnpm db:generate && pnpm --filter web build",
