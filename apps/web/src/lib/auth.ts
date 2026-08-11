@@ -90,107 +90,113 @@ export const getAuthenticatedSession = safeCache(async () => {
     return { user: { id: "local-dev-user", email: "dev@local.internal", isPlatformAdmin: true }, workspace: ws };
   }
 
-  // Ensure the auth identity exists locally, but only write when it changed.
-  const incomingEmail = user.email || null;
-  const existingUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: { email: true },
-  });
-  if (!existingUser) {
-    await prisma.user.upsert({
-      where: { id: user.id },
-      update: {},
-      create: {
-        id: user.id,
-        email: incomingEmail,
-        displayName: user.user_metadata?.full_name || user.email?.split("@")[0] || null,
-      },
-    });
-  } else if (existingUser.email !== incomingEmail) {
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { email: incomingEmail },
-    });
-  }
+  let isPlatformAdmin = false;
+  let ws = null;
 
-  const emailLower = user.email?.toLowerCase() || "";
-  const roleConfig = EMAIL_ROLE_MAPPING[emailLower];
-
-  // Auto-provision PlatformAdmin if email is marked as platform admin
-  let platformAdminRecord = null;
-  if (roleConfig?.isPlatformAdmin) {
-    platformAdminRecord = await prisma.platformAdmin.findUnique({
-      where: { userId: user.id },
+  try {
+    // Ensure the auth identity exists locally, but only write when it changed.
+    const incomingEmail = user.email || null;
+    const existingUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { email: true },
     });
-    if (!platformAdminRecord) {
-      platformAdminRecord = await prisma.platformAdmin.upsert({
-        where: { userId: user.id },
+    if (!existingUser) {
+      await prisma.user.upsert({
+        where: { id: user.id },
         update: {},
-        create: { userId: user.id, role: "SUPER_ADMIN", status: "ACTIVE" },
+        create: {
+          id: user.id,
+          email: incomingEmail,
+          displayName: user.user_metadata?.full_name || user.email?.split("@")[0] || null,
+        },
       });
-    } else if (platformAdminRecord.role !== "SUPER_ADMIN" || platformAdminRecord.status !== "ACTIVE") {
-      platformAdminRecord = await prisma.platformAdmin.update({
-        where: { userId: user.id },
-        data: { role: "SUPER_ADMIN", status: "ACTIVE" },
+    } else if (existingUser.email !== incomingEmail) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { email: incomingEmail },
       });
     }
-  } else {
-    platformAdminRecord = await prisma.platformAdmin.findUnique({
-      where: { userId: user.id },
-    });
-  }
 
-  const isPlatformAdmin = !!platformAdminRecord || !!roleConfig?.isPlatformAdmin;
+    const emailLower = user.email?.toLowerCase() || "";
+    const roleConfig = EMAIL_ROLE_MAPPING[emailLower];
 
-  let ws = null;
-  const workspaceId = cookieStore.get("workspace-id")?.value;
-  if (workspaceId) {
-    ws = await prisma.workspace.findFirst({
-      where: {
-        id: workspaceId,
-        status: "ACTIVE",
-        memberships: { some: { userId: user.id } },
-      },
-    });
-  }
-
-  if (!ws) {
-    const membership = await prisma.membership.findFirst({
-      where: {
-        userId: user.id,
-        workspace: { status: "ACTIVE" },
-      },
-      include: { workspace: true },
-    });
-    if (membership) {
-      ws = membership.workspace;
-      // Sync membership role if configured specifically for this email
-      if (roleConfig && membership.role !== roleConfig.role) {
-        await prisma.membership.update({
-          where: { id: membership.id },
-          data: { role: roleConfig.role },
+    // Auto-provision PlatformAdmin if email is marked as platform admin
+    let platformAdminRecord = null;
+    if (roleConfig?.isPlatformAdmin) {
+      platformAdminRecord = await prisma.platformAdmin.findUnique({
+        where: { userId: user.id },
+      });
+      if (!platformAdminRecord) {
+        platformAdminRecord = await prisma.platformAdmin.upsert({
+          where: { userId: user.id },
+          update: {},
+          create: { userId: user.id, role: "SUPER_ADMIN", status: "ACTIVE" },
+        });
+      } else if (platformAdminRecord.role !== "SUPER_ADMIN" || platformAdminRecord.status !== "ACTIVE") {
+        platformAdminRecord = await prisma.platformAdmin.update({
+          where: { userId: user.id },
+          data: { role: "SUPER_ADMIN", status: "ACTIVE" },
         });
       }
+    } else {
+      platformAdminRecord = await prisma.platformAdmin.findUnique({
+        where: { userId: user.id },
+      });
     }
-  }
 
-  if (!ws) {
-    const name = `${user.email?.split("@")[0] || "User"}'s Workspace`;
-    const slug = `workspace-${user.id.substring(0, 8)}`;
-    const assignedRole = roleConfig?.role || "OWNER";
+    isPlatformAdmin = !!platformAdminRecord || !!roleConfig?.isPlatformAdmin;
 
-    ws = await prisma.workspace.create({
-      data: {
-        name,
-        slug,
-        memberships: {
-          create: {
-            userId: user.id,
-            role: assignedRole,
+    const workspaceId = cookieStore.get("workspace-id")?.value;
+    if (workspaceId) {
+      ws = await prisma.workspace.findFirst({
+        where: {
+          id: workspaceId,
+          status: "ACTIVE",
+          memberships: { some: { userId: user.id } },
+        },
+      });
+    }
+
+    if (!ws) {
+      const membership = await prisma.membership.findFirst({
+        where: {
+          userId: user.id,
+          workspace: { status: "ACTIVE" },
+        },
+        include: { workspace: true },
+      });
+      if (membership) {
+        ws = membership.workspace;
+        // Sync membership role if configured specifically for this email
+        if (roleConfig && membership.role !== roleConfig.role) {
+          await prisma.membership.update({
+            where: { id: membership.id },
+            data: { role: roleConfig.role },
+          });
+        }
+      }
+    }
+
+    if (!ws) {
+      const name = `${user.email?.split("@")[0] || "User"}'s Workspace`;
+      const slug = `workspace-${user.id.substring(0, 8)}`;
+      const assignedRole = roleConfig?.role || "OWNER";
+
+      ws = await prisma.workspace.create({
+        data: {
+          name,
+          slug,
+          memberships: {
+            create: {
+              userId: user.id,
+              role: assignedRole,
+            },
           },
         },
-      },
-    });
+      });
+    }
+  } catch (dbError) {
+    console.error("[AUTH DB PROVISIONING ERROR]", dbError);
   }
 
   const userPayload = {
