@@ -13,11 +13,20 @@ export type SessionResolutionError =
 
 function authErrorMetadata(error: unknown) {
   if (!error || typeof error !== "object") return { name: "UnknownError" };
-  const candidate = error as { name?: unknown; code?: unknown; status?: unknown };
+  const candidate = error as {
+    name?: unknown;
+    code?: unknown;
+    status?: unknown;
+    message?: unknown;
+    clientVersion?: unknown;
+  };
   return {
     name: typeof candidate.name === "string" ? candidate.name : "UnknownError",
     code: typeof candidate.code === "string" ? candidate.code : undefined,
     status: typeof candidate.status === "number" ? candidate.status : undefined,
+    message: typeof candidate.message === "string" ? candidate.message.slice(0, 500) : undefined,
+    clientVersion:
+      typeof candidate.clientVersion === "string" ? candidate.clientVersion : undefined,
   };
 }
 
@@ -156,6 +165,7 @@ export const getAuthenticatedSession = safeCache(async () => {
 
   let isPlatformAdmin = false;
   let ws: Awaited<ReturnType<typeof prisma.workspace.findFirst>> = null;
+  let workspaceResolutionPhase = "INITIALIZING";
 
   try {
     const emailLower = user.email?.toLowerCase() || "";
@@ -165,6 +175,7 @@ export const getAuthenticatedSession = safeCache(async () => {
     const workspaceId = rawWorkspaceId && UUID_REGEX.test(rawWorkspaceId) ? rawWorkspaceId : null;
 
     const resolved = await withUserDatabaseContext(user.id, workspaceId, async (tx) => {
+      workspaceResolutionPhase = "SYNCING_USER";
       const existingUser = await tx.user.findUnique({ where: { id: user.id } });
       if (!existingUser) {
         await tx.user.create({
@@ -176,6 +187,7 @@ export const getAuthenticatedSession = safeCache(async () => {
         });
       }
 
+      workspaceResolutionPhase = "RESOLVING_PLATFORM_ADMIN";
       let platformAdminRecord = await tx.platformAdmin.findUnique({ where: { userId: user.id } });
       if (roleConfig?.isPlatformAdmin && !platformAdminRecord) {
         platformAdminRecord = await tx.platformAdmin.create({
@@ -183,6 +195,7 @@ export const getAuthenticatedSession = safeCache(async () => {
         });
       }
 
+      workspaceResolutionPhase = "RESOLVING_WORKSPACE_COOKIE";
       let workspace = workspaceId
         ? await tx.workspace.findFirst({
             where: {
@@ -194,6 +207,7 @@ export const getAuthenticatedSession = safeCache(async () => {
         : null;
 
       if (!workspace) {
+        workspaceResolutionPhase = "RESOLVING_MEMBERSHIP";
         const membership = await tx.membership.findFirst({
           where: {
             userId: user.id,
@@ -206,6 +220,7 @@ export const getAuthenticatedSession = safeCache(async () => {
       }
 
       if (!workspace) {
+        workspaceResolutionPhase = "PROVISIONING_WORKSPACE";
         const newWorkspaceId = crypto.randomUUID();
         await setWorkspaceContext(tx, newWorkspaceId);
         workspace = await tx.workspace.create({
@@ -229,7 +244,10 @@ export const getAuthenticatedSession = safeCache(async () => {
     ws = resolved.workspace;
     isPlatformAdmin = resolved.isPlatformAdmin;
   } catch (dbError) {
-    console.error("[AUTH_DB_PROVISIONING_ERROR]", authErrorMetadata(dbError));
+    console.error("[AUTH_DB_PROVISIONING_ERROR]", {
+      phase: workspaceResolutionPhase,
+      ...authErrorMetadata(dbError),
+    });
   }
 
   const userPayload = {

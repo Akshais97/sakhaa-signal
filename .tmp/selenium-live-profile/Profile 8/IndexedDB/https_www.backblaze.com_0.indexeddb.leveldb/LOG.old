@@ -1,0 +1,6 @@
+2026/07/31-13:08:03.703 3f44 Creating DB C:\Users\askhai\AppData\Local\Google\Chrome\User Data\Profile 8\IndexedDB\https_www.backblaze.com_0.indexeddb.leveldb since it was missing.
+2026/07/31-13:08:03.726 3f44 Reusing MANIFEST C:\Users\askhai\AppData\Local\Google\Chrome\User Data\Profile 8\IndexedDB\https_www.backblaze.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/07/31-13:08:06.221 3f44 Level-0 table #5: started
+2026/07/31-13:08:06.225 3f44 Level-0 table #5: 1537 bytes OK
+2026/07/31-13:08:06.231 3f44 Delete type=0 #3
+2026/07/31-13:08:06.235 3f44 Manual compaction at level-0 from (begin) .. (end); will stop at (end)

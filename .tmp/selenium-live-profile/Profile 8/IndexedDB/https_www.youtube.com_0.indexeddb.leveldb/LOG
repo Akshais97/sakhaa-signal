@@ -1,0 +1,15 @@
+2026/08/04-18:22:24.666 550 Reusing MANIFEST C:\Users\askhai\AppData\Local\Google\Chrome\User Data\Profile 8\IndexedDB\https_www.youtube.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/08/04-18:22:24.667 550 Recovering log #136
+2026/08/04-18:22:24.667 550 Reusing old log C:\Users\askhai\AppData\Local\Google\Chrome\User Data\Profile 8\IndexedDB\https_www.youtube.com_0.indexeddb.leveldb/000136.log 
+2026/08/04-18:23:00.086 3e7c Level-0 table #141: started
+2026/08/04-18:23:00.090 3e7c Level-0 table #141: 2111 bytes OK
+2026/08/04-18:23:00.094 3e7c Delete type=0 #136
+2026/08/04-18:23:00.097 3e7c Manual compaction at level-0 from (begin) .. (end); will stop at (end)
+2026/08/04-18:23:00.097 3e7c Manual compaction at level-1 from (begin) .. (end); will stop at '\x00\x09\x02\x02\x01\x14\x00s\x00h\x00e\x00l\x00l\x00_\x00i\x00d\x00e\x00n\x00t\x00i\x00f\x00i\x00e\x00r\x00_\x00k\x00e\x00y' @ 112315 : 1
+2026/08/04-18:23:00.098 3e7c Compacting 1@1 + 1@2 files
+2026/08/04-18:23:00.103 3e7c Generated table #142@1: 1539 keys, 67017 bytes
+2026/08/04-18:23:00.104 3e7c Compacted 1@1 + 1@2 files => 67017 bytes
+2026/08/04-18:23:00.106 3e7c compacted to: files[ 0 0 1 0 0 0 0 ]
+2026/08/04-18:23:00.107 3e7c Delete type=2 #138
+2026/08/04-18:23:00.107 3e7c Delete type=2 #141
+2026/08/04-18:23:00.114 3e7c Manual compaction at level-1 from '\x00\x09\x02\x02\x01\x14\x00s\x00h\x00e\x00l\x00l\x00_\x00i\x00d\x00e\x00n\x00t\x00i\x00f\x00i\x00e\x00r\x00_\x00k\x00e\x00y' @ 112315 : 1 .. (end); will stop at (end)

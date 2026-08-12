@@ -1,0 +1,6 @@
+2026/07/31-17:55:24.817 3f44 Creating DB C:\Users\askhai\AppData\Local\Google\Chrome\User Data\Profile 8\IndexedDB\https_www.flipkart.com_0.indexeddb.leveldb since it was missing.
+2026/07/31-17:55:24.838 3f44 Reusing MANIFEST C:\Users\askhai\AppData\Local\Google\Chrome\User Data\Profile 8\IndexedDB\https_www.flipkart.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/07/31-21:56:25.874 3f44 Level-0 table #5: started
+2026/07/31-21:56:25.897 3f44 Level-0 table #5: 1862783 bytes OK
+2026/07/31-21:56:25.904 3f44 Delete type=0 #3
+2026/07/31-21:56:25.909 3f44 Manual compaction at level-0 from (begin) .. (end); will stop at (end)

@@ -1,0 +1,15 @@
+2026/06/02-12:07:37.826 2408 Reusing MANIFEST C:\Users\askhai\AppData\Local\Google\Chrome\User Data\Profile 8\IndexedDB\https_www.youtube.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/06/02-12:07:37.826 2408 Recovering log #132
+2026/06/02-12:07:37.827 2408 Reusing old log C:\Users\askhai\AppData\Local\Google\Chrome\User Data\Profile 8\IndexedDB\https_www.youtube.com_0.indexeddb.leveldb/000132.log 
+2026/06/02-12:08:13.626 dc4 Level-0 table #137: started
+2026/06/02-12:08:13.631 dc4 Level-0 table #137: 3705 bytes OK
+2026/06/02-12:08:13.634 dc4 Delete type=0 #132
+2026/06/02-12:08:13.637 dc4 Manual compaction at level-0 from (begin) .. (end); will stop at (end)
+2026/06/02-12:08:13.637 dc4 Manual compaction at level-1 from (begin) .. (end); will stop at '\x00\x09\x02\x02\x01\x14\x00s\x00h\x00e\x00l\x00l\x00_\x00i\x00d\x00e\x00n\x00t\x00i\x00f\x00i\x00e\x00r\x00_\x00k\x00e\x00y' @ 112242 : 0
+2026/06/02-12:08:13.638 dc4 Compacting 1@1 + 1@2 files
+2026/06/02-12:08:13.643 dc4 Generated table #138@1: 1539 keys, 67034 bytes
+2026/06/02-12:08:13.643 dc4 Compacted 1@1 + 1@2 files => 67034 bytes
+2026/06/02-12:08:13.646 dc4 compacted to: files[ 0 0 1 0 0 0 0 ]
+2026/06/02-12:08:13.647 dc4 Delete type=2 #134
+2026/06/02-12:08:13.647 dc4 Delete type=2 #137
+2026/06/02-12:08:13.656 dc4 Manual compaction at level-1 from '\x00\x09\x02\x02\x01\x14\x00s\x00h\x00e\x00l\x00l\x00_\x00i\x00d\x00e\x00n\x00t\x00i\x00f\x00i\x00e\x00r\x00_\x00k\x00e\x00y' @ 112242 : 0 .. (end); will stop at (end)
