@@ -47,7 +47,6 @@ export async function POST(req: NextRequest) {
     const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
     const objectKey = `workspaces/${ws.id}/analyses/${artifactId}/${sanitizedFileName}`;
 
-    // Try creating DB artifact record if workspace is persisted
     try {
       await prisma.artifact.create({
         data: {
@@ -64,8 +63,12 @@ export async function POST(req: NextRequest) {
           objectKey,
         },
       });
-    } catch (dbErr) {
-      console.warn("[PRESIGN DB ARTIFACT WARNING]", dbErr);
+    } catch (error) {
+      console.error("[PRESIGN_ARTIFACT_PERSISTENCE_ERROR]", error);
+      return NextResponse.json(
+        { error: "Upload could not be initialized", code: "ARTIFACT_PERSISTENCE_FAILED" },
+        { status: 503 },
+      );
     }
 
     let uploadUrl: string;

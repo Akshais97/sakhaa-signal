@@ -1,21 +1,11 @@
 import { PrismaClient } from "@sakhaa-forge/db";
+import { getServerlessDatabaseUrl } from "./database-url";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-function getDbUrl() {
-  const url = process.env.DATABASE_URL || "";
-  if (!url) return undefined;
-  // If connection_limit is already set to a tiny value like 2, replace it with optimal pool limit 10
-  if (url.includes("connection_limit=")) {
-    return url.replace(/connection_limit=\d+/, "connection_limit=10");
-  }
-  const separator = url.includes("?") ? "&" : "?";
-  return `${url}${separator}connection_limit=10&pool_timeout=20`;
-}
-
-const dbUrl = getDbUrl();
+const dbUrl = getServerlessDatabaseUrl(process.env.DATABASE_URL);
 
 export const prisma =
   globalForPrisma.prisma ??

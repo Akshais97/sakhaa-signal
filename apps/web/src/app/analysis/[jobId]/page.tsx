@@ -12,50 +12,25 @@ export default async function AnalysisPage({ params }: { params: Promise<{ jobId
     redirect(`/login?next=/analysis/${jobId}`);
   }
 
-  let job: any = null;
-  try {
-    job = await prisma.analysisJob.findUnique({
-      where: { id: jobId },
-      include: {
-        stages: true,
-        evidence: true,
-        ruleResults: true,
-        categoryScores: true,
-        findings: true,
-        reports: true,
-      },
-    });
-  } catch (dbErr) {
-    console.warn("[ANALYSIS_PAGE DB QUERY WARNING]", dbErr);
-  }
+  const job = await prisma.analysisJob.findUnique({
+    where: { id: jobId },
+    include: {
+      stages: true,
+      evidence: true,
+      ruleResults: true,
+      categoryScores: true,
+      findings: true,
+      reports: true,
+    },
+  });
+  if (!job) notFound();
 
-  // Graceful fallback initial job state if DB record is not yet synced
-  if (!job) {
-    job = {
-      id: jobId,
-      workspaceId: ws.id,
-      mode: "STATIC_STANDARD",
-      status: "QUEUED",
-      progressPercent: 10,
-      currentStage: "DOWNLOAD_AND_VALIDATE",
-      mediaType: "IMAGE",
-      title: "Creative Analysis",
-      selectedModel: "gpt-5.6-sol",
-      stages: [
-        { id: "stage-1", stageName: "DOWNLOAD_AND_VALIDATE", stageOrder: 1, status: "RUNNING" },
-        { id: "stage-2", stageName: "PREPROCESSING", stageOrder: 2, status: "QUEUED" },
-        { id: "stage-3", stageName: "COMPUTER_VISION", stageOrder: 3, status: "QUEUED" },
-        { id: "stage-4", stageName: "RULE_EVALUATION", stageOrder: 4, status: "QUEUED" },
-        { id: "stage-5", stageName: "DETERMINISTIC_SCORING", stageOrder: 5, status: "QUEUED" },
-        { id: "stage-6", stageName: "MULTIMODAL_GPT_SYNTHESIS", stageOrder: 6, status: "QUEUED" },
-        { id: "stage-7", stageName: "REPORT_PUBLISHING", stageOrder: 7, status: "QUEUED" },
-      ],
-      evidence: [],
-      ruleResults: [],
-      categoryScores: [],
-      findings: [],
-      reports: [],
-    };
+  if (job.workspaceId !== ws.id && !user.isPlatformAdmin) {
+    const membership = await prisma.membership.findFirst({
+      where: { workspaceId: job.workspaceId, userId: user.id, status: "ACTIVE" },
+      select: { id: true },
+    });
+    if (!membership) notFound();
   }
 
   const isVideo =

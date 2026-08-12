@@ -199,34 +199,11 @@ export const getAuthenticatedSession = safeCache(async () => {
           },
         });
       } catch (createErr) {
-        console.warn("[AUTH WORKSPACE CREATION FALLBACK]", createErr);
-        try {
-          ws = await prisma.workspace.findFirst({
-            where: { status: "ACTIVE" },
-          });
-        } catch {}
+        console.error("[AUTH_WORKSPACE_PERSISTENCE_ERROR]", createErr);
       }
-    }
-
-    // Guarantee non-null fallback workspace for authenticated users
-    if (!ws) {
-      ws = {
-        id: `ws-${user.id.substring(0, 8)}`,
-        name: `${user.email?.split("@")[0] || "User"}'s Workspace`,
-        slug: `ws-${user.id.substring(0, 8)}`,
-        status: "ACTIVE",
-      };
     }
   } catch (dbError) {
     console.error("[AUTH DB PROVISIONING ERROR]", dbError);
-    if (!ws) {
-      ws = {
-        id: `ws-${user.id.substring(0, 8)}`,
-        name: `${user.email?.split("@")[0] || "User"}'s Workspace`,
-        slug: `ws-${user.id.substring(0, 8)}`,
-        status: "ACTIVE",
-      };
-    }
   }
 
   const userPayload = {

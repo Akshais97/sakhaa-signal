@@ -5,24 +5,21 @@ export async function authorizeAnalysisJob(jobId: string) {
   const { user, workspace } = await getAuthenticatedSession();
   if (!user || !workspace) return { error: "unauthorized" as const };
 
-  let job: any = null;
   try {
-    job = await prisma.analysisJob.findUnique({ where: { id: jobId } });
-  } catch (dbErr) {
-    console.warn("[AUTHORIZE_JOB DB WARNING]", dbErr);
-  }
+    const job = await prisma.analysisJob.findUnique({ where: { id: jobId } });
+    if (!job) return { error: "not_found" as const };
 
-  if (!job) {
-    // Return fallback job for active session
-    job = {
-      id: jobId,
-      workspaceId: workspace.id,
-      status: "RUNNING",
-      progressPercent: 20,
-      currentStage: "DOWNLOAD_AND_VALIDATE",
-      errorMessage: null,
-    };
-  }
+    if (job.workspaceId !== workspace.id && !user.isPlatformAdmin) {
+      const membership = await prisma.membership.findFirst({
+        where: { workspaceId: job.workspaceId, userId: user.id, status: "ACTIVE" },
+        select: { id: true },
+      });
+      if (!membership) return { error: "not_found" as const };
+    }
 
-  return { user, workspace, job };
+    return { user, workspace, job };
+  } catch (error) {
+    console.error("[AUTHORIZE_JOB_DB_ERROR]", error);
+    return { error: "database_unavailable" as const };
+  }
 }

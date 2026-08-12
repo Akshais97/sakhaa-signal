@@ -7,12 +7,16 @@ import { createWriteStream } from "node:fs";
 import { pipeline } from "node:stream/promises";
 
 type StorageClient = {
-  send(command: GetObjectCommand | PutObjectCommand): Promise<any>;
+  send(
+    command: GetObjectCommand | PutObjectCommand,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<any>;
 };
 
 type StorageAdapterOptions = {
   provider?: string;
   s3Client?: StorageClient;
+  downloadTimeoutMs?: number;
 };
 
 function getHttpStatusCode(error: unknown): number | undefined {
@@ -33,12 +37,16 @@ function describeStorageError(error: unknown): string {
   return statusCode ? `HTTP ${statusCode}: ${message}` : message;
 }
 
+const STORAGE_DOWNLOAD_TIMEOUT_MS = Number(process.env.STORAGE_DOWNLOAD_TIMEOUT_MS || 120_000);
+
 export class StorageAdapter {
   private s3Client?: StorageClient;
   private provider: string;
+  private downloadTimeoutMs: number;
 
   constructor(options: StorageAdapterOptions = {}) {
     this.provider = options.provider || process.env.OBJECT_STORAGE_PROVIDER || "local-filesystem";
+    this.downloadTimeoutMs = options.downloadTimeoutMs || STORAGE_DOWNLOAD_TIMEOUT_MS;
     if (options.s3Client) {
       this.s3Client = options.s3Client;
       return;
@@ -61,6 +69,8 @@ export class StorageAdapter {
     await mkdir(path.dirname(destLocalPath), { recursive: true });
 
     if (this.s3Client) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), this.downloadTimeoutMs);
       try {
         const bucket = process.env.B2_BUCKET_QUARANTINE || process.env.B2_BUCKET_CLEAN_MEDIA || "v0-local-quarantine";
         const command = new GetObjectCommand({
@@ -68,12 +78,20 @@ export class StorageAdapter {
           Key: objectKey,
         });
 
-        const response = await this.s3Client.send(command);
+        const response = await this.s3Client.send(command, { abortSignal: controller.signal });
         if (response.Body) {
-          await pipeline(response.Body as Readable, createWriteStream(destLocalPath));
+          await pipeline(response.Body as Readable, createWriteStream(destLocalPath), {
+            signal: controller.signal,
+          });
           return;
         }
       } catch (error: unknown) {
+        if (controller.signal.aborted) {
+          throw new Error(
+            `S3/B2 download timed out after ${this.downloadTimeoutMs}ms for media object "${objectKey}".`,
+            { cause: error },
+          );
+        }
         if (!isMissingObjectError(error)) {
           throw new Error(
             `S3/B2 download failed for media object "${objectKey}" (${describeStorageError(error)}).`,
@@ -81,6 +99,8 @@ export class StorageAdapter {
           );
         }
         console.warn(`[STORAGE_WARNING] Media object "${objectKey}" was not found in S3/B2. Checking local storage simulator fallback...`);
+      } finally {
+        clearTimeout(timeout);
       }
     }
 
@@ -102,14 +122,9 @@ export class StorageAdapter {
     }
 
     if (!foundPath) {
-      console.warn(`[STORAGE_FALLBACK] Media object key "${objectKey}" not found in S3/B2 or local storage. Generating valid fallback media file.`);
-      // Minimal valid 1x1 PNG image buffer
-      const fallbackPng = Buffer.from(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-        "base64"
+      throw new Error(
+        `[STORAGE_ERROR] Media object key "${objectKey}" was not found in Backblaze B2 or local storage. Please ensure Backblaze B2 environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, B2_BUCKET_QUARANTINE) are configured on Vercel and Railway.`
       );
-      await writeFile(destLocalPath, fallbackPng);
-      return;
     }
 
     await copyFile(foundPath, destLocalPath);

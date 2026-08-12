@@ -33,10 +33,13 @@ function validateProductionEnvironment() {
   const required = [
     "DATABASE_URL", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_ENDPOINT_URL",
     "AWS_DEFAULT_REGION", "B2_BUCKET_QUARANTINE", "B2_BUCKET_PRIVATE_ARTIFACTS",
-    "OPENAI_API_KEY", "GROQ_API_KEY", "FFMPEG_PATH", "FFPROBE_PATH",
+    "OBJECT_STORAGE_PROVIDER", "OPENAI_API_KEY", "GROQ_API_KEY", "FFMPEG_PATH", "FFPROBE_PATH",
   ];
   const missing = required.filter((name) => !process.env[name]);
   if (missing.length) throw new Error(`Missing required worker environment variables: ${missing.join(", ")}`);
+  if (!['b2', 's3'].includes(process.env.OBJECT_STORAGE_PROVIDER!.toLowerCase())) {
+    throw new Error("OBJECT_STORAGE_PROVIDER must be b2 or s3 in production");
+  }
 }
 
 validateProductionEnvironment();
@@ -62,6 +65,12 @@ const LEASE_DURATION_MS = 5 * 60 * 1000;
 const LEASE_HEARTBEAT_MS = 60 * 1000;
 
 console.log(`[SIGNAL_CPU_WORKER] Started as ${WORKER_ID}`);
+if (process.env.NODE_ENV === "production") {
+  const storageHost = new URL(process.env.AWS_ENDPOINT_URL!).host;
+  console.log(
+    `[SIGNAL_CPU_WORKER] Storage configured: provider=${process.env.OBJECT_STORAGE_PROVIDER} host=${storageHost} region=${process.env.AWS_DEFAULT_REGION} quarantineBucket=${process.env.B2_BUCKET_QUARANTINE}`,
+  );
+}
 
 async function claimEligibleJob() {
   const now = new Date();
@@ -568,50 +577,11 @@ import http from "node:http";
 const PORT = Number(process.env.PORT || 8000);
 const server = http.createServer(async (req, res) => {
   res.setHeader("Content-Type", "application/json");
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-
-  if (req.method === "OPTIONS") {
-    res.writeHead(204);
-    res.end();
-    return;
-  }
 
   const url = req.url || "/";
-  if (url === "/health" || url === "/api/gpu/health" || url === "/api/cpu/health") {
+  if (req.method === "GET" && (url === "/health" || url === "/api/gpu/health" || url === "/api/cpu/health")) {
     res.writeHead(200);
     res.end(JSON.stringify({ status: "ok", workerId: WORKER_ID, uptimeSeconds: Math.floor(process.uptime()) }));
-    return;
-  }
-
-  if ((url === "/api/cpu/jobs/run" || url === "/api/gpu/jobs/run") && req.method === "POST") {
-    let bodyStr = "";
-    req.on("data", (chunk) => { bodyStr += chunk; });
-    req.on("end", async () => {
-      try {
-        const payload = JSON.parse(bodyStr || "{}");
-        const jobId = payload.job_id || payload.jobId;
-        console.log(`[SIGNAL_CPU_WORKER] Direct HTTP dispatch trigger received for job: ${jobId || "direct"}`);
-
-        res.writeHead(202);
-        res.end(JSON.stringify({ success: true, message: "Job dispatch accepted", jobId }));
-
-        if (jobId) {
-          try {
-            const job = await prisma.analysisJob.findUnique({ where: { id: jobId } });
-            if (job) {
-              void processJob(job);
-            }
-          } catch (jobErr) {
-            console.warn("[SIGNAL_CPU_WORKER] HTTP job fetch warning:", jobErr);
-          }
-        }
-      } catch (err: any) {
-        res.writeHead(400);
-        res.end(JSON.stringify({ error: "Invalid job dispatch payload", details: err.message }));
-      }
-    });
     return;
   }
 

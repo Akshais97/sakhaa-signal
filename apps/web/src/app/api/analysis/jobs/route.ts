@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import crypto from "node:crypto";
 import prisma from "@/lib/db";
 import { getAuthenticatedSession } from "@/lib/auth";
 import { getAnalysisStages, INITIAL_ANALYSIS_JOB_STATE, isAllowedAnalysisModel, isStandardAnalysisMode } from "@sakhaa-forge/contracts";
@@ -66,81 +65,31 @@ export async function POST(req: NextRequest) {
     if (!isAllowedAnalysisModel(model)) {
       return NextResponse.json({ error: `Unsupported analysis model: ${selectedModel}` }, { status: 400 });
     }
-    const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-
-    // Ensure valid UUID workspace ID
-    let validWorkspaceId = ws?.id && UUID_REGEX.test(ws.id) ? ws.id : null;
-    if (!validWorkspaceId) {
-      try {
-        const dbWs = await prisma.workspace.findFirst({ where: { status: "ACTIVE" } });
-        if (dbWs) {
-          validWorkspaceId = dbWs.id;
-        }
-      } catch {}
-    }
-
-    if (!validWorkspaceId) {
-      // Create fallback workspace with valid UUID
-      const fallbackWsId = crypto.randomUUID();
-      try {
-        const createdWs = await prisma.workspace.create({
-          data: {
-            id: fallbackWsId,
-            name: "Active Workspace",
-            slug: `ws-${fallbackWsId.substring(0, 8)}`,
-          },
-        });
-        validWorkspaceId = createdWs.id;
-      } catch {
-        validWorkspaceId = fallbackWsId;
-      }
-    }
-
-    // Ensure valid UUID artifact ID
-    let validArtifactId = inputArtifactId && UUID_REGEX.test(inputArtifactId) ? inputArtifactId : crypto.randomUUID();
-    let artifact = null;
-    try {
-      artifact = await prisma.artifact.findFirst({ where: { id: validArtifactId } });
-    } catch {}
-
-    const objectKey = artifact?.objectKey || `workspaces/${validWorkspaceId}/analyses/${validArtifactId}/input_media`;
-
-    // Ensure artifact record exists in DB to satisfy foreign key
+    const artifact = await prisma.artifact.findFirst({
+      where: { id: inputArtifactId, workspaceId: ws.id },
+    });
     if (!artifact) {
-      try {
-        await prisma.artifact.create({
-          data: {
-            id: validArtifactId,
-            workspaceId: validWorkspaceId,
-            fileName: "input_media",
-            contentType: mediaType.toLowerCase() === "video" ? "video/mp4" : "image/jpeg",
-            byteSize: 1024,
-            sha256: "0".repeat(64),
-            status: "CLEAN",
-            retentionClass: "ANALYSIS_INPUT",
-            producer: "USER_UPLOAD",
-            schemaVersion: "v1",
-            objectKey,
-          },
-        });
-      } catch (artErr) {
-        console.warn("[POST_ANALYSIS_JOB ARTIFACT WARNING]", artErr);
-      }
+      return NextResponse.json({ error: "Upload artifact not found" }, { status: 404 });
+    }
+    if (artifact.status !== "CLEAN") {
+      return NextResponse.json({ error: "Upload has not been verified" }, { status: 409 });
+    }
+    const expectedMediaType = String(mediaType).toLowerCase() === "video" ? "video" : "image";
+    if (!artifact.contentType.toLowerCase().startsWith(`${expectedMediaType}/`)) {
+      return NextResponse.json({ error: "Artifact media type does not match the job" }, { status: 400 });
     }
 
-    const jobId = crypto.randomUUID();
     const stagesList = getAnalysisStages(mode);
 
     try {
       const job = await prisma.analysisJob.create({
         data: {
-          id: jobId,
-          workspaceId: validWorkspaceId,
+          workspaceId: ws.id,
           mode: mode || "STATIC_STANDARD",
           ...INITIAL_ANALYSIS_JOB_STATE,
           mediaType: mediaType || "IMAGE",
-          inputArtifactId: validArtifactId,
-          inputObjectKey: objectKey,
+          inputArtifactId: artifact.id,
+          inputObjectKey: artifact.objectKey,
           title: title || "Untitled Creative Analysis",
           brandName: brandName || null,
           targetPlatform: targetPlatform || null,
@@ -160,53 +109,13 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Non-blocking trigger to CPU worker HTTP endpoint if configured
-      const workerUrl = process.env.SIGNAL_CPU_WORKER_URL || process.env.RAILWAY_CPU_WORKER_URL;
-      if (workerUrl) {
-        void fetch(`${workerUrl.replace(/\/$/, "")}/api/cpu/jobs/run`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jobId, job }),
-        }).catch((err) => console.warn("[WORKER_HTTP_TRIGGER_WARNING]", err));
-      }
-
       return NextResponse.json({ job });
-    } catch (dbCreateErr) {
-      console.warn("[POST_ANALYSIS_JOB DB FALLBACK]", dbCreateErr);
-      const fallbackJob = {
-        id: jobId,
-        workspaceId: validWorkspaceId,
-        mode: mode || "STATIC_STANDARD",
-        ...INITIAL_ANALYSIS_JOB_STATE,
-        mediaType: mediaType || "IMAGE",
-        inputArtifactId: validArtifactId,
-        inputObjectKey: objectKey,
-        title: title || "Untitled Creative Analysis",
-        brandName: brandName || null,
-        targetPlatform: targetPlatform || null,
-        placement: placement || null,
-        creativeGoal: creativeGoal || null,
-        selectedModel: model,
-        stages: stagesList.map((stageName, index) => ({
-          id: crypto.randomUUID(),
-          analysisJobId: jobId,
-          stageName,
-          stageOrder: index + 1,
-          status: "QUEUED",
-        })),
-      };
-
-      // Also trigger HTTP worker for fallback job payload
-      const workerUrl = process.env.SIGNAL_CPU_WORKER_URL || process.env.RAILWAY_CPU_WORKER_URL;
-      if (workerUrl) {
-        void fetch(`${workerUrl.replace(/\/$/, "")}/api/cpu/jobs/run`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jobId, job: fallbackJob }),
-        }).catch((err) => console.warn("[WORKER_HTTP_TRIGGER_WARNING]", err));
-      }
-
-      return NextResponse.json({ job: fallbackJob });
+    } catch (error) {
+      console.error("[POST_ANALYSIS_JOB_PERSISTENCE_ERROR]", error);
+      return NextResponse.json(
+        { error: "Analysis job could not be persisted", code: "JOB_PERSISTENCE_FAILED" },
+        { status: 503 },
+      );
     }
   } catch (error: any) {
     console.error("[POST_ANALYSIS_JOB_ERROR]", error);

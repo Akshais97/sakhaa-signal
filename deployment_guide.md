@@ -183,15 +183,16 @@ In the Railway service **Variables** tab, configure:
 ```ini
 NODE_ENV=production
 DATABASE_URL="your-production-postgres-url"
+OBJECT_STORAGE_PROVIDER="b2"
 AWS_ACCESS_KEY_ID="your-b2-or-s3-key-id"
 AWS_SECRET_ACCESS_KEY="your-b2-or-s3-secret-key"
 AWS_ENDPOINT_URL="https://s3.us-east-005.backblazeb2.com"
 AWS_DEFAULT_REGION="us-east-005"
 B2_BUCKET_QUARANTINE="quarantine-bucket-name"
 B2_BUCKET_PRIVATE_ARTIFACTS="artifacts-bucket-name"
+STORAGE_DOWNLOAD_TIMEOUT_MS="120000"
 OPENAI_API_KEY="sk-..."
 GROQ_API_KEY="gsk_..."
 FFMPEG_PATH="/usr/bin/ffmpeg"
 FFPROBE_PATH="/usr/bin/ffprobe"
 ```
-
