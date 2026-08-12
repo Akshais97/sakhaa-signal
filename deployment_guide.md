@@ -159,3 +159,39 @@ If you encounter errors during setup, consult the following steps:
     ```
 * **Error: "Prisma generated client not found"**
   * Solution: Make sure to run `pnpm db:generate` inside the root workspace directory before starting the dev server or builds.
+
+---
+
+## 7. Deploying `signal-cpu-worker` to Railway
+
+To deploy **only** the `signal-cpu-worker` (`workers/cpu`) service on Railway without deploying `web` or `@sakhaa-forge/queue-worker`:
+
+### Option A: Deploy via Dockerfile (Recommended)
+1. In Railway, create a **New Service** -> **GitHub Repo**.
+2. Go to **Settings** for the service:
+   - Set **Build Command** (or select Dockerfile): Railway will automatically pick up `workers/cpu/Dockerfile` if **ConfigFile Path** is set to `workers/cpu/Dockerfile` or **Root Directory** is set to `/`.
+   - Or set **Dockerfile Path** to `workers/cpu/Dockerfile`.
+
+### Option B: Deploy via Nixpacks / Railpack
+1. In Railway service **Settings**:
+   - Set **Root Directory**: `/`
+   - Set **Build Command**: `pnpm --filter signal-cpu-worker build`
+   - Set **Start Command**: `pnpm --filter signal-cpu-worker start`
+
+### Required Environment Variables in Railway
+In the Railway service **Variables** tab, configure:
+```ini
+NODE_ENV=production
+DATABASE_URL="your-production-postgres-url"
+AWS_ACCESS_KEY_ID="your-b2-or-s3-key-id"
+AWS_SECRET_ACCESS_KEY="your-b2-or-s3-secret-key"
+AWS_ENDPOINT_URL="https://s3.us-east-005.backblazeb2.com"
+AWS_DEFAULT_REGION="us-east-005"
+B2_BUCKET_QUARANTINE="quarantine-bucket-name"
+B2_BUCKET_PRIVATE_ARTIFACTS="artifacts-bucket-name"
+OPENAI_API_KEY="sk-..."
+GROQ_API_KEY="gsk_..."
+FFMPEG_PATH="/usr/bin/ffmpeg"
+FFPROBE_PATH="/usr/bin/ffprobe"
+```
+

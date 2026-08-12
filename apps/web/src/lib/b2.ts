@@ -8,11 +8,11 @@ const REQUIRED_B2_ENV = [
 ] as const;
 
 export function isB2Configured(): boolean {
-  return REQUIRED_B2_ENV.every((name) => Boolean(process.env[name]));
+  return REQUIRED_B2_ENV.every((name: string) => Boolean(process.env[name]));
 }
 
 export function getB2Client(): S3Client {
-  const missing = REQUIRED_B2_ENV.filter((name) => !process.env[name]);
+  const missing = REQUIRED_B2_ENV.filter((name: string) => !process.env[name]);
   if (missing.length > 0) {
     throw new Error(`Backblaze B2 is not configured. Missing: ${missing.join(", ")}`);
   }

@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const mappedUsers = users.map((u) => {
+    const mappedUsers = users.map((u: any) => {
       const primaryMembership = u.memberships[0];
       const workspace = primaryMembership?.workspace;
       const wsId = workspace?.id;

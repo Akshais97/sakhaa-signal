@@ -60,14 +60,20 @@ export async function analyzeStaticCreativeWithOpenAI(
 ): Promise<UnifiedOpenAIVisionResult> {
   const apiKey = getFreshOpenAIApiKey();
 
+  const rawModel = (modelName && modelName.trim()) ? modelName.trim() : (process.env.OPENAI_MODEL || "gpt-4o");
+  const selectedModel =
+    process.env.OPENAI_SOL_MODEL && (rawModel.includes("5.6") || rawModel.includes("sol"))
+      ? process.env.OPENAI_SOL_MODEL
+      : (rawModel.includes("5.6") || rawModel.includes("sol"))
+        ? (process.env.OPENAI_MODEL || "gpt-4o")
+        : rawModel;
+  console.log(`[OPENAI_VISION] Initiating Sakhaa Signal creative extraction with model: ${selectedModel} (requested: ${modelName || "default"})`);
+
   if (!apiKey || apiKey.trim() === "" || apiKey === "local-openai-placeholder") {
     throw new Error(
-      "[OPENAI_VISION_ERROR] OPENAI_API_KEY is not configured in environment. Real creative analysis requires a valid OpenAI API key."
+      "[OPENAI_VISION_ERROR] OPENAI_API_KEY is not configured. Real creative diagnosis requires a valid OPENAI_API_KEY environment variable."
     );
   }
-
-  const selectedModel = (modelName && modelName.trim()) ? modelName.trim() : (process.env.OPENAI_MODEL || "gpt-4o");
-  console.log(`[OPENAI_VISION] Initiating Sakhaa Signal creative extraction & diagnosis with model: ${selectedModel}`);
 
   const configuredTimeout = Number(process.env.OPENAI_VISION_TIMEOUT_MS || 120_000);
   const timeout = Number.isFinite(configuredTimeout) && configuredTimeout > 0
@@ -242,6 +248,6 @@ export async function analyzeStaticCreativeWithOpenAI(
     };
   } catch (err: any) {
     console.error(`[OPENAI_VISION_ERROR] Analysis failed with model ${selectedModel}:`, err);
-    throw new Error(`OpenAI Vision Analysis Failed (${selectedModel}): ${err.message}`);
+    throw new Error(`[OPENAI_VISION_ERROR] Real creative diagnosis failed with model (${selectedModel}): ${err.message}`);
   }
 }

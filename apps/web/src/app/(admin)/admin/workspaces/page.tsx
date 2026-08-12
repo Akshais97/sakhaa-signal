@@ -26,7 +26,7 @@ export default async function AdminWorkspacesPage() {
       </div>
 
       <div className="border border-[#2E2B26] rounded-xl overflow-hidden bg-[#121110] divide-y divide-[#2E2B26]">
-        {workspaces.map((ws) => (
+        {workspaces.map((ws: any) => (
           <div key={ws.id} className="p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
               <div className="flex items-center gap-3">

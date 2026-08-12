@@ -15,7 +15,7 @@ export async function register() {
     "OPENAI_API_KEY",
     "GROQ_API_KEY",
   ];
-  const missing = required.filter((name) => !process.env[name]);
+  const missing = required.filter((name: string) => !process.env[name]);
   if (missing.length) {
     throw new Error(`Missing required web environment variables: ${missing.join(", ")}`);
   }

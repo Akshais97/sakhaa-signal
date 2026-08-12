@@ -26,7 +26,7 @@ export async function GET() {
     });
 
     return NextResponse.json({
-      workspaces: memberships.map(({ workspace, role }) => ({
+      workspaces: memberships.map(({ workspace, role }: any) => ({
         ...workspace,
         role,
       })),

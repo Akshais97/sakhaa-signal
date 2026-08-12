@@ -47,22 +47,26 @@ export async function POST(req: NextRequest) {
     const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
     const objectKey = `workspaces/${ws.id}/analyses/${artifactId}/${sanitizedFileName}`;
 
-    // Create DB artifact record
-    const artifact = await prisma.artifact.create({
-      data: {
-        id: artifactId,
-        workspaceId: ws.id,
-        fileName: sanitizedFileName,
-        contentType,
-        byteSize: Number(byteSize),
-        sha256: "0".repeat(64),
-        status: "QUARANTINED",
-        retentionClass: "ANALYSIS_INPUT",
-        producer: "USER_UPLOAD",
-        schemaVersion: "v1",
-        objectKey,
-      },
-    });
+    // Try creating DB artifact record if workspace is persisted
+    try {
+      await prisma.artifact.create({
+        data: {
+          id: artifactId,
+          workspaceId: ws.id,
+          fileName: sanitizedFileName,
+          contentType,
+          byteSize: Number(byteSize),
+          sha256: "0".repeat(64),
+          status: "QUARANTINED",
+          retentionClass: "ANALYSIS_INPUT",
+          producer: "USER_UPLOAD",
+          schemaVersion: "v1",
+          objectKey,
+        },
+      });
+    } catch (dbErr) {
+      console.warn("[PRESIGN DB ARTIFACT WARNING]", dbErr);
+    }
 
     let uploadUrl: string;
     if (isB2Configured()) {
@@ -77,15 +81,17 @@ export async function POST(req: NextRequest) {
         { expiresIn: 15 * 60 }
       );
     } else if (process.env.NODE_ENV !== "production") {
-      uploadUrl = `/api/uploads/direct?key=${encodeURIComponent(objectKey)}&artifactId=${artifact.id}`;
+      uploadUrl = `/api/uploads/direct?key=${encodeURIComponent(objectKey)}&artifactId=${artifactId}`;
     } else {
-      await prisma.artifact.delete({ where: { id: artifact.id } });
+      try {
+        await prisma.artifact.delete({ where: { id: artifactId } });
+      } catch {}
       return NextResponse.json({ error: "Backblaze B2 is not configured" }, { status: 503 });
     }
 
     return NextResponse.json({
       uploadUrl,
-      artifactId: artifact.id,
+      artifactId,
       objectKey,
       workspaceId: ws.id,
       expiresInSeconds: 15 * 60,

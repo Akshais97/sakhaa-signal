@@ -6,7 +6,9 @@ import { getAuthenticatedSession } from "./auth";
  * Ensures the requesting user has a valid PlatformAdmin role (SUPER_ADMIN, SUPPORT, OPERATIONS, FINANCE).
  * Cached per request to eliminate duplicate authentication network roundtrips during tab navigation.
  */
-export const requirePlatformAdminSession = cache(async () => {
+const safeCache = typeof cache === "function" ? cache : <T extends (...args: any[]) => any>(fn: T) => fn;
+
+export const requirePlatformAdminSession = safeCache(async () => {
   const session = await getAuthenticatedSession();
 
   if (!session.user) {

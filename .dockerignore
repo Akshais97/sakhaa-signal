@@ -16,13 +16,10 @@ TribeV2_environment_handover_V2_files/
 
 # 1. Exclude Private Configuration Files & Secrets
 .env
-.env.example
+.env
 .env.*
 .npmrc
-pnpm-lock.yaml
-pnpm-workspace.yaml
 pnpm.cmd
-turbo.json
 
 # 2. Exclude Editor & Tool Configuration Folders
 .agents/
@@ -31,17 +28,11 @@ turbo.json
 .git/
 .gitignore
 .gitattributes
-.node-version
-.nvmrc
 .obsidian/
-.python-version
-.tool-versions
 .vscode/
 
-# 3. Exclude Non-GPU Workspace Applications & Packages
+# 3. Exclude Non-GPU Workspace Applications & Packages (keep packages and workers)
 apps/web/
-packages/
-workers/
 ad-brain-scorer/
 firecrawl-main/
 instagram-content-impact-predictor/

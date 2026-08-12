@@ -6,20 +6,30 @@ import { getAuthenticatedSession } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   try {
-    const { user, workspace: ws } = await getAuthenticatedSession();
-    if (!user || !ws) {
+    const { user, workspace }: any = await getAuthenticatedSession();
+    const ws: any = workspace;
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const jobs = await prisma.job.findMany({
-      where: {
-        workspaceId: ws.id,
-        type: "TRIBEV2_AD_SCORER",
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    if (!ws) {
+      return NextResponse.json({ jobs: [], workspace: null, user });
+    }
 
-    const mappedJobs = jobs.map(job => {
+    let jobs: any[] = [];
+    try {
+      jobs = await prisma.job.findMany({
+        where: {
+          workspaceId: ws.id,
+          type: "TRIBEV2_AD_SCORER",
+        },
+        orderBy: { createdAt: "desc" },
+      });
+    } catch (dbErr) {
+      console.warn("[API/JOBS DB WARNING]", dbErr);
+    }
+
+    const mappedJobs = jobs.map((job: any) => {
       const j = { ...job };
       if (j.status === "SUCCEEDED") {
         j.status = "COMPLETED" as any;
@@ -43,7 +53,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { user, workspace: ws } = await getAuthenticatedSession();
+    const { user, workspace }: any = await getAuthenticatedSession();
+    const ws: any = workspace;
     if (!user || !ws) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

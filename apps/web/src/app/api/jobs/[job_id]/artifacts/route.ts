@@ -7,7 +7,8 @@ export async function GET(
   { params }: { params: Promise<{ job_id: string }> }
 ) {
   try {
-    const { user, workspace: ws } = await getAuthenticatedSession();
+    const { user, workspace }: any = await getAuthenticatedSession();
+    const ws: any = workspace;
     if (!user || !ws) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -46,7 +47,7 @@ export async function GET(
       "manifest.json"
     ];
 
-    const artifacts = files.reduce((acc, filePath) => {
+    const artifacts = files.reduce((acc: any, filePath: string) => {
       const key = `exports/${job_id}/${filePath}`;
       acc[filePath.split("/").pop() || filePath] = {
         key,
