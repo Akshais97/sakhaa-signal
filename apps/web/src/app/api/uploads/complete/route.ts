@@ -1,7 +1,7 @@
 import { HeadObjectCommand } from "@aws-sdk/client-s3";
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/db";
 import { getAuthenticatedSession } from "@/lib/auth";
+import { withUserDatabaseContext } from "@/lib/db-context";
 import { getB2Client, getQuarantineBucket, isB2Configured } from "@/lib/b2";
 
 export async function POST(req: NextRequest) {
@@ -16,9 +16,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "artifactId is required" }, { status: 400 });
     }
 
-    const artifact = await prisma.artifact.findFirst({
-      where: { id: artifactId, workspaceId: workspace.id },
-    });
+    const artifact = await withUserDatabaseContext(user.id, workspace.id, (tx) =>
+      tx.artifact.findFirst({ where: { id: artifactId, workspaceId: workspace.id } }),
+    );
     if (!artifact) {
       return NextResponse.json({ error: "Upload artifact not found" }, { status: 404 });
     }
@@ -41,10 +41,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const completed = await prisma.artifact.update({
-      where: { id: artifact.id },
-      data: { status: "CLEAN" },
-    });
+    const completed = await withUserDatabaseContext(user.id, workspace.id, (tx) =>
+      tx.artifact.update({ where: { id: artifact.id }, data: { status: "CLEAN" } }),
+    );
     return NextResponse.json({ artifact: completed });
   } catch (error: unknown) {
     console.error("[UPLOAD_COMPLETE_ERROR]", error);

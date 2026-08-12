@@ -4,6 +4,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import crypto from "node:crypto";
 import prisma from "@/lib/db";
 import { getAuthenticatedSession } from "@/lib/auth";
+import { withUserDatabaseContext } from "@/lib/db-context";
 import { getB2Client, getQuarantineBucket, isB2Configured } from "@/lib/b2";
 import { validateUploadMetadata } from "@/lib/uploadSanitizer";
 
@@ -69,7 +70,7 @@ export async function POST(req: NextRequest) {
     const objectKey = `workspaces/${ws.id}/analyses/${artifactId}/${sanitizedFileName}`;
 
     try {
-      await prisma.artifact.create({
+      await withUserDatabaseContext(user.id, ws.id, (tx) => tx.artifact.create({
         data: {
           id: artifactId,
           workspaceId: ws.id,
@@ -83,7 +84,7 @@ export async function POST(req: NextRequest) {
           schemaVersion: "v1",
           objectKey,
         },
-      });
+      }));
     } catch (error) {
       console.error("[PRESIGN_ARTIFACT_PERSISTENCE_ERROR]", error);
       return NextResponse.json(

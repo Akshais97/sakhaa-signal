@@ -1,35 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/db";
 import { getAuthenticatedSession } from "@/lib/auth";
+import { withUserDatabaseContext } from "@/lib/db-context";
 import { getAnalysisStages, INITIAL_ANALYSIS_JOB_STATE, isAllowedAnalysisModel, isStandardAnalysisMode } from "@sakhaa-forge/contracts";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const { user, workspace }: any = await getAuthenticatedSession();
-    const ws: any = workspace;
+    const { user, workspace: ws } = await getAuthenticatedSession();
     if (!user || !ws) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const jobs = await prisma.analysisJob.findMany({
+    const jobs = await withUserDatabaseContext(user.id, ws.id, (tx) => tx.analysisJob.findMany({
       where: { workspaceId: ws.id },
       orderBy: { createdAt: "desc" },
       include: {
         stages: true,
         categoryScores: true,
       },
-    });
+    }));
 
     return NextResponse.json({ jobs, workspace: ws });
-  } catch (error: any) {
-    return NextResponse.json({ error: "Failed to fetch analysis jobs", details: error.message }, { status: 500 });
+  } catch (error) {
+    console.error("[GET_ANALYSIS_JOBS_ERROR]", error);
+    return NextResponse.json(
+      { error: "Failed to fetch analysis jobs", code: "ANALYSIS_JOBS_UNAVAILABLE" },
+      { status: 503 },
+    );
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const { user, workspace }: any = await getAuthenticatedSession();
-    const ws: any = workspace;
+    const { user, workspace: ws } = await getAuthenticatedSession();
     if (!user || !ws) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -65,9 +67,9 @@ export async function POST(req: NextRequest) {
     if (!isAllowedAnalysisModel(model)) {
       return NextResponse.json({ error: `Unsupported analysis model: ${selectedModel}` }, { status: 400 });
     }
-    const artifact = await prisma.artifact.findFirst({
-      where: { id: inputArtifactId, workspaceId: ws.id },
-    });
+    const artifact = await withUserDatabaseContext(user.id, ws.id, (tx) =>
+      tx.artifact.findFirst({ where: { id: inputArtifactId, workspaceId: ws.id } }),
+    );
     if (!artifact) {
       return NextResponse.json({ error: "Upload artifact not found" }, { status: 404 });
     }
@@ -82,7 +84,7 @@ export async function POST(req: NextRequest) {
     const stagesList = getAnalysisStages(mode);
 
     try {
-      const job = await prisma.analysisJob.create({
+      const job = await withUserDatabaseContext(user.id, ws.id, (tx) => tx.analysisJob.create({
         data: {
           workspaceId: ws.id,
           mode: mode || "STATIC_STANDARD",
@@ -107,7 +109,7 @@ export async function POST(req: NextRequest) {
         include: {
           stages: true,
         },
-      });
+      }));
 
       return NextResponse.json({ job });
     } catch (error) {
@@ -117,8 +119,11 @@ export async function POST(req: NextRequest) {
         { status: 503 },
       );
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error("[POST_ANALYSIS_JOB_ERROR]", error);
-    return NextResponse.json({ error: "Failed to create analysis job", details: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to create analysis job", code: "ANALYSIS_JOB_UNAVAILABLE" },
+      { status: 503 },
+    );
   }
 }
