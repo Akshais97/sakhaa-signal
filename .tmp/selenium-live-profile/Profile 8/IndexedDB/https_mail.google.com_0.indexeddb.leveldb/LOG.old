@@ -1,7 +1,0 @@
-2026/08/05-13:45:32.373 550 Reusing MANIFEST C:\Users\askhai\AppData\Local\Google\Chrome\User Data\Profile 8\IndexedDB\https_mail.google.com_0.indexeddb.leveldb/MANIFEST-000001
-2026/08/05-13:45:32.374 550 Recovering log #3
-2026/08/05-13:45:32.375 550 Reusing old log C:\Users\askhai\AppData\Local\Google\Chrome\User Data\Profile 8\IndexedDB\https_mail.google.com_0.indexeddb.leveldb/000003.log 
-2026/08/05-16:10:45.707 3e7c Level-0 table #5: started
-2026/08/05-16:10:45.715 3e7c Level-0 table #5: 14847 bytes OK
-2026/08/05-16:10:45.721 3e7c Delete type=0 #3
-2026/08/05-16:10:45.725 3e7c Manual compaction at level-0 from (begin) .. (end); will stop at (end)

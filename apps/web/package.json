@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "prebuild": "pnpm --filter @sakhaa-forge/contracts build && pnpm --filter @sakhaa-forge/db build",
-    "build": "pnpm prebuild && next build",
+    "build": "pnpm prebuild && next build && node ../../scripts/verify-vercel-prisma-engine.mjs",
     "start": "next start",
     "lint": "eslint"
   },

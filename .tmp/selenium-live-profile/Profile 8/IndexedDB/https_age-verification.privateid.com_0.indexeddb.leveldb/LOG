@@ -1,6 +1,0 @@
-2026/08/05-13:29:45.643 3e7c Creating DB C:\Users\askhai\AppData\Local\Google\Chrome\User Data\Profile 8\IndexedDB\https_age-verification.privateid.com_0.indexeddb.leveldb since it was missing.
-2026/08/05-13:29:45.662 3e7c Reusing MANIFEST C:\Users\askhai\AppData\Local\Google\Chrome\User Data\Profile 8\IndexedDB\https_age-verification.privateid.com_0.indexeddb.leveldb/MANIFEST-000001
-2026/08/05-13:30:33.879 3e7c Level-0 table #5: started
-2026/08/05-13:30:33.882 3e7c Level-0 table #5: 1726 bytes OK
-2026/08/05-13:30:33.889 3e7c Delete type=0 #3
-2026/08/05-13:30:33.892 3e7c Manual compaction at level-0 from (begin) .. (end); will stop at (end)

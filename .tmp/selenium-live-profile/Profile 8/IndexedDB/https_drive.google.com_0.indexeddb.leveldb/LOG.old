@@ -1,9 +1,0 @@
-2026/03/01-22:50:29.101 21dc Reusing MANIFEST C:\Users\askhai\AppData\Local\Google\Chrome\User Data\Profile 8\IndexedDB\https_drive.google.com_0.indexeddb.leveldb/MANIFEST-000001
-2026/03/01-22:50:29.101 21dc Recovering log #25
-2026/03/01-22:50:29.103 21dc Reusing old log C:\Users\askhai\AppData\Local\Google\Chrome\User Data\Profile 8\IndexedDB\https_drive.google.com_0.indexeddb.leveldb/000025.log 
-2026/03/01-22:51:00.082 21dc Compacting 1@1 + 1@2 files
-2026/03/01-22:51:00.094 21dc Generated table #28@1: 100 keys, 117197 bytes
-2026/03/01-22:51:00.094 21dc Compacted 1@1 + 1@2 files => 117197 bytes
-2026/03/01-22:51:00.097 21dc compacted to: files[ 0 0 1 0 0 0 0 ]
-2026/03/01-22:51:00.097 21dc Delete type=2 #23
-2026/03/01-22:51:00.098 21dc Delete type=2 #26

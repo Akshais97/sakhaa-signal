@@ -1,14 +1,6 @@
 import type { Prisma } from "@sakhaa-forge/db";
 import prisma from "./db";
 
-// Vercel instances intentionally use a one-connection Prisma pool. Concurrent
-// requests can wait behind another transaction, so Prisma's 2s/5s interactive
-// transaction defaults are too short for this serverless topology.
-export const SERVERLESS_TRANSACTION_OPTIONS = {
-  maxWait: 10_000,
-  timeout: 20_000,
-} as const;
-
 export async function setWorkspaceContext(
   tx: Prisma.TransactionClient,
   workspaceId: string,
@@ -21,12 +13,9 @@ export async function withUserDatabaseContext<T>(
   workspaceId: string | null,
   operation: (tx: Prisma.TransactionClient) => Promise<T>,
 ): Promise<T> {
-  return prisma.$transaction(
-    async (tx) => {
-      await tx.$executeRaw`SELECT set_config('app.current_user_id', ${userId}, true)`;
-      if (workspaceId) await setWorkspaceContext(tx, workspaceId);
-      return operation(tx);
-    },
-    SERVERLESS_TRANSACTION_OPTIONS,
-  );
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.current_user_id', ${userId}, true)`;
+    if (workspaceId) await setWorkspaceContext(tx, workspaceId);
+    return operation(tx);
+  });
 }

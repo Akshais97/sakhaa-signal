@@ -127,8 +127,6 @@ test("authenticated upload and job routes establish transaction-local RLS contex
   assert.match(context, /set_config\('app\.current_user_id'/);
   assert.match(context, /set_config\('app\.current_workspace_id'/);
   assert.match(context, /prisma\.\$transaction/);
-  assert.match(context, /maxWait:\s*10_000/);
-  assert.match(context, /timeout:\s*20_000/);
 
   for (const path of [
     "apps/web/src/app/api/uploads/presign/route.ts",

@@ -116,3 +116,4 @@ tests/test_hcp_cluster_evidence.py
 env details/
 firecrawl-main/
 scratch/
+.tmp/

@@ -12,9 +12,10 @@ try {
 }
 
 const command = process.execPath;
-const schemaPath = existsSync(resolve("prisma/schema.prisma"))
-  ? resolve("prisma/schema.prisma")
-  : resolve("packages/db/prisma/schema.prisma");
+const dbPackageDir = existsSync(resolve("packages/db/prisma/schema.prisma"))
+  ? resolve("packages/db")
+  : process.cwd();
+const schemaPath = resolve(dbPackageDir, "prisma/schema.prisma");
 
 const args = [
   resolvePrismaEntrypoint(),
@@ -23,6 +24,7 @@ const args = [
   schemaPath
 ];
 const result = spawnSync(command, args, {
+  cwd: dbPackageDir,
   stdio: "inherit"
 });
 
@@ -33,7 +35,7 @@ if (result.error) {
 process.exit(result.status ?? 1);
 
 function resolvePrismaEntrypoint() {
-  const local = resolve("packages/db/node_modules/prisma/build/index.js");
+  const local = resolve(dbPackageDir, "node_modules/prisma/build/index.js");
   if (existsSync(local)) {
     return local;
   }
