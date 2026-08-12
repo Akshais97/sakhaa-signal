@@ -4,34 +4,39 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function proxy(request: NextRequest) {
   const isApiRoute = request.nextUrl.pathname.startsWith("/api/");
 
-  // API handlers authenticate themselves. Avoid a second remote Supabase
-  // lookup in middleware for every dashboard poll and upload request.
-  if (isApiRoute) {
-    return NextResponse.next();
-  }
-
   let response = NextResponse.next({
     request: {
       headers: request.headers,
     },
   });
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseAnonKey =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+
+  // Let API handlers return their typed configuration error instead of
+  // failing here with an opaque Proxy exception.
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error("[AUTH_PROXY_CONFIGURATION_ERROR] Supabase configuration is incomplete");
+    return response;
+  }
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }: any) =>
+          cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
           response = NextResponse.next({
             request,
           });
-          cookiesToSet.forEach(({ name, value, options }: any) =>
+          cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           );
         },
@@ -39,9 +44,28 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) {
+      console.warn("[AUTH_PROXY_SESSION_REFRESH_ERROR]", {
+        name: error.name,
+        code: error.code,
+        status: error.status,
+      });
+    }
+    user = data.user;
+  } catch (error) {
+    console.error("[AUTH_PROXY_PROVIDER_ERROR]", {
+      name: error instanceof Error ? error.name : "UnknownError",
+    });
+  }
+
+  // API handlers still own authorization and response semantics. Proxy only
+  // refreshes Supabase cookies before forwarding the request.
+  if (isApiRoute) {
+    return response;
+  }
 
   const isPublicPage =
     request.nextUrl.pathname === "/" ||

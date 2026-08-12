@@ -9,9 +9,30 @@ import { validateUploadMetadata } from "@/lib/uploadSanitizer";
 
 export async function POST(req: NextRequest) {
   try {
-    const { user, workspace: ws } = await getAuthenticatedSession();
-    if (!user || !ws) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { user, workspace: ws, sessionError } = await getAuthenticatedSession();
+    if (!user) {
+      const authServiceUnavailable =
+        sessionError === "AUTH_CONFIGURATION_ERROR" ||
+        sessionError === "AUTH_PROVIDER_UNAVAILABLE";
+      return NextResponse.json(
+        {
+          error: authServiceUnavailable
+            ? "Authentication service is temporarily unavailable"
+            : "Unauthorized",
+          code: sessionError || "AUTH_SESSION_INVALID",
+        },
+        { status: authServiceUnavailable ? 503 : 401 },
+      );
+    }
+
+    if (!ws) {
+      return NextResponse.json(
+        {
+          error: "Workspace could not be resolved",
+          code: "WORKSPACE_RESOLUTION_FAILED",
+        },
+        { status: 503 },
+      );
     }
 
     const body = await req.json();
@@ -99,10 +120,10 @@ export async function POST(req: NextRequest) {
       workspaceId: ws.id,
       expiresInSeconds: 15 * 60,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("[PRESIGN_UPLOAD_ERROR]", error);
     return NextResponse.json(
-      { error: "Failed to generate upload URL", details: error.message },
+      { error: "Failed to generate upload URL", code: "PRESIGN_UPLOAD_FAILED" },
       { status: 500 }
     );
   }

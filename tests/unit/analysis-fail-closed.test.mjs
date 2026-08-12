@@ -47,6 +47,34 @@ test("authenticated sessions never fall back to another tenant or an invented wo
   assert.match(access, /workspaceId: job\.workspaceId, userId: user\.id, status: "ACTIVE"/);
 });
 
+test("presign distinguishes an invalid session from workspace and auth-provider failures", () => {
+  const auth = source("apps/web/src/lib/auth.ts");
+  const presign = source("apps/web/src/app/api/uploads/presign/route.ts");
+
+  assert.match(auth, /AUTH_SESSION_VALIDATION_ERROR/);
+  assert.match(auth, /AUTH_PROVIDER_UNAVAILABLE/);
+  assert.match(auth, /WORKSPACE_RESOLUTION_FAILED/);
+  assert.doesNotMatch(auth, /placeholder\.supabase\.co|placeholder-anon-key/);
+
+  assert.match(presign, /if \(!user\)/);
+  assert.match(presign, /if \(!ws\)/);
+  assert.match(presign, /WORKSPACE_RESOLUTION_FAILED/);
+  assert.match(presign, /authServiceUnavailable \? 503 : 401/);
+  assert.doesNotMatch(presign, /if \(!user \|\| !ws\)/);
+});
+
+test("Supabase proxy refreshes API sessions before route authorization", () => {
+  const proxy = source("apps/web/src/proxy.ts");
+  const authLookup = proxy.indexOf("supabase.auth.getUser()");
+  const apiReturn = proxy.indexOf("if (isApiRoute)");
+
+  assert.ok(authLookup >= 0, "proxy must validate or refresh the Supabase session");
+  assert.ok(apiReturn > authLookup, "API forwarding must happen after Supabase session refresh");
+  assert.match(proxy, /return response;/);
+  assert.match(proxy, /AUTH_PROXY_CONFIGURATION_ERROR/);
+  assert.match(proxy, /AUTH_PROXY_PROVIDER_ERROR/);
+});
+
 test("upload completion proves the B2 object exists before marking the artifact clean", () => {
   const presignRoute = source("apps/web/src/app/api/uploads/presign/route.ts");
   const completeRoute = source("apps/web/src/app/api/uploads/complete/route.ts");

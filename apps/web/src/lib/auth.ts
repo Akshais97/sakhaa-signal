@@ -3,6 +3,22 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import prisma from "./db";
 
+export type SessionResolutionError =
+  | "AUTH_CONFIGURATION_ERROR"
+  | "AUTH_SESSION_INVALID"
+  | "AUTH_PROVIDER_UNAVAILABLE"
+  | "WORKSPACE_RESOLUTION_FAILED";
+
+function authErrorMetadata(error: unknown) {
+  if (!error || typeof error !== "object") return { name: "UnknownError" };
+  const candidate = error as { name?: unknown; code?: unknown; status?: unknown };
+  return {
+    name: typeof candidate.name === "string" ? candidate.name : "UnknownError",
+    code: typeof candidate.code === "string" ? candidate.code : undefined,
+    status: typeof candidate.status === "number" ? candidate.status : undefined,
+  };
+}
+
 const EMAIL_ROLE_MAPPING: Record<
   string,
   { role: "OWNER" | "ADMIN" | "CLIENT_MANAGER" | "REVIEWER"; isPlatformAdmin: boolean }
@@ -17,13 +33,26 @@ const EMAIL_ROLE_MAPPING: Record<
  * Retrieves the current authenticated user and workspace session.
  * Wrapped with React cache() to eliminate duplicate Supabase Auth network roundtrips during Next.js rendering.
  */
-const safeCache = typeof cache === "function" ? cache : <T extends (...args: any[]) => any>(fn: T) => fn;
+const safeCache = cache;
 
 export const getAuthenticatedSession = safeCache(async () => {
   const cookieStore = await cookies();
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseAnonKey =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error("[AUTH_CONFIGURATION_ERROR] Supabase server configuration is incomplete");
+    return {
+      user: null,
+      workspace: null,
+      sessionError: "AUTH_CONFIGURATION_ERROR" as SessionResolutionError,
+    };
+  }
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "https://placeholder.supabase.co",
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "placeholder-anon-key",
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
@@ -31,7 +60,7 @@ export const getAuthenticatedSession = safeCache(async () => {
         },
         setAll(cookiesToSet) {
           try {
-            cookiesToSet.forEach(({ name, value, options }: any) =>
+            cookiesToSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, options)
             );
           } catch {}
@@ -42,9 +71,29 @@ export const getAuthenticatedSession = safeCache(async () => {
 
   let user = null;
   try {
-    const { data } = await supabase.auth.getUser();
+    const { data, error } = await supabase.auth.getUser();
+    if (error) {
+      const metadata = authErrorMetadata(error);
+      console.warn("[AUTH_SESSION_VALIDATION_ERROR]", metadata);
+      const isInvalidSession =
+        metadata.status === 400 || metadata.status === 401 || metadata.status === 403;
+      return {
+        user: null,
+        workspace: null,
+        sessionError: (isInvalidSession
+          ? "AUTH_SESSION_INVALID"
+          : "AUTH_PROVIDER_UNAVAILABLE") as SessionResolutionError,
+      };
+    }
     user = data.user;
-  } catch {}
+  } catch (error) {
+    console.error("[AUTH_PROVIDER_ERROR]", authErrorMetadata(error));
+    return {
+      user: null,
+      workspace: null,
+      sessionError: "AUTH_PROVIDER_UNAVAILABLE" as SessionResolutionError,
+    };
+  }
 
   const isDevBypassAllowed =
     process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_BYPASS === "true";
@@ -52,7 +101,11 @@ export const getAuthenticatedSession = safeCache(async () => {
   // If unauthenticated and dev bypass is not enabled, return null session
   if (!user) {
     if (!isDevBypassAllowed) {
-      return { user: null, workspace: null };
+      return {
+        user: null,
+        workspace: null,
+        sessionError: "AUTH_SESSION_INVALID" as SessionResolutionError,
+      };
     }
 
     // Dev bypass only for local development testing when explicitly enabled
@@ -87,11 +140,15 @@ export const getAuthenticatedSession = safeCache(async () => {
       });
     }
 
-    return { user: { id: "local-dev-user", email: "dev@local.internal", isPlatformAdmin: true }, workspace: ws };
+    return {
+      user: { id: "local-dev-user", email: "dev@local.internal", isPlatformAdmin: true },
+      workspace: ws,
+      sessionError: null,
+    };
   }
 
   let isPlatformAdmin = false;
-  let ws: any = null;
+  let ws: Awaited<ReturnType<typeof prisma.workspace.findFirst>> = null;
 
   try {
     // Ensure the auth identity exists locally, but only write when it changed.
@@ -157,7 +214,9 @@ export const getAuthenticatedSession = safeCache(async () => {
             memberships: { some: { userId: user.id } },
           },
         });
-      } catch {}
+      } catch (error) {
+        console.error("[AUTH_WORKSPACE_COOKIE_LOOKUP_ERROR]", authErrorMetadata(error));
+      }
     }
 
     if (!ws) {
@@ -211,5 +270,9 @@ export const getAuthenticatedSession = safeCache(async () => {
     isPlatformAdmin,
   };
 
-  return { user: userPayload, workspace: ws };
+  return {
+    user: userPayload,
+    workspace: ws,
+    sessionError: ws ? null : ("WORKSPACE_RESOLUTION_FAILED" as SessionResolutionError),
+  };
 });
