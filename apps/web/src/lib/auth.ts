@@ -176,22 +176,26 @@ export const getAuthenticatedSession = safeCache(async () => {
 
     const resolved = await withUserDatabaseContext(user.id, workspaceId, async (tx) => {
       workspaceResolutionPhase = "SYNCING_USER";
-      const existingUser = await tx.user.findUnique({ where: { id: user.id } });
-      if (!existingUser) {
-        await tx.user.create({
-          data: {
+      await tx.user.upsert({
+        where: { id: user.id },
+        update: {
+          email: user.email || null,
+          displayName: user.user_metadata?.full_name || user.email?.split("@")[0] || null,
+        },
+        create: {
             id: user.id,
             email: user.email || null,
             displayName: user.user_metadata?.full_name || user.email?.split("@")[0] || null,
-          },
-        });
-      }
+        },
+      });
 
       workspaceResolutionPhase = "RESOLVING_PLATFORM_ADMIN";
       let platformAdminRecord = await tx.platformAdmin.findUnique({ where: { userId: user.id } });
-      if (roleConfig?.isPlatformAdmin && !platformAdminRecord) {
-        platformAdminRecord = await tx.platformAdmin.create({
-          data: { userId: user.id, role: "SUPER_ADMIN", status: "ACTIVE" },
+      if (roleConfig?.isPlatformAdmin) {
+        platformAdminRecord = await tx.platformAdmin.upsert({
+          where: { userId: user.id },
+          update: { role: "SUPER_ADMIN", status: "ACTIVE" },
+          create: { userId: user.id, role: "SUPER_ADMIN", status: "ACTIVE" },
         });
       }
 
@@ -208,6 +212,22 @@ export const getAuthenticatedSession = safeCache(async () => {
 
       if (!workspace) {
         workspaceResolutionPhase = "RESOLVING_MEMBERSHIP";
+        const membership = await tx.membership.findFirst({
+          where: {
+            userId: user.id,
+            status: "ACTIVE",
+            workspace: { status: "ACTIVE" },
+          },
+          include: { workspace: true },
+        });
+        workspace = membership?.workspace || null;
+      }
+
+      if (!workspace) {
+        workspaceResolutionPhase = "LOCKING_WORKSPACE_PROVISIONING";
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${user.id}, 0))`;
+
+        workspaceResolutionPhase = "RECHECKING_MEMBERSHIP";
         const membership = await tx.membership.findFirst({
           where: {
             userId: user.id,
