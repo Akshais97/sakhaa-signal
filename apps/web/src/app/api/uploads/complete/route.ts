@@ -1,13 +1,13 @@
 import { HeadObjectCommand } from "@aws-sdk/client-s3";
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/db";
 import { getAuthenticatedSession } from "@/lib/auth";
+import { withUserDatabaseContext } from "@/lib/db-context";
 import { getB2Client, getQuarantineBucket, isB2Configured } from "@/lib/b2";
 
 export async function POST(req: NextRequest) {
   try {
     const { user, workspace } = await getAuthenticatedSession();
-    if (!user) {
+    if (!user || !workspace) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -16,36 +16,40 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "artifactId is required" }, { status: 400 });
     }
 
-    let artifact: any = null;
-    try {
-      artifact = await prisma.artifact.findUnique({ where: { id: artifactId } });
-    } catch {}
-
-    if (artifact) {
-      try {
-        const completed = await prisma.artifact.update({
-          where: { id: artifact.id },
-          data: { status: "CLEAN" },
-        });
-        return NextResponse.json({ artifact: completed });
-      } catch {}
+    const artifact = await withUserDatabaseContext(user.id, workspace.id, (tx) =>
+      tx.artifact.findFirst({ where: { id: artifactId, workspaceId: workspace.id } }),
+    );
+    if (!artifact) {
+      return NextResponse.json({ error: "Upload artifact not found" }, { status: 404 });
     }
 
-    // Fallback response if artifact record is not persisted in DB yet
-    return NextResponse.json({
-      artifact: {
-        id: artifactId,
-        status: "CLEAN",
-        workspaceId: workspace?.id || "default-ws",
-      },
-    });
+    if (!isB2Configured()) {
+      return NextResponse.json({ error: "Backblaze B2 is not configured" }, { status: 503 });
+    }
+
+    const head = await getB2Client().send(new HeadObjectCommand({
+      Bucket: getQuarantineBucket(),
+      Key: artifact.objectKey,
+    }));
+    if (!head.ContentLength || head.ContentLength <= 0) {
+      return NextResponse.json({ error: "Uploaded object is empty" }, { status: 422 });
+    }
+    if (head.ContentLength !== artifact.byteSize) {
+      return NextResponse.json(
+        { error: "Uploaded object size does not match the requested upload" },
+        { status: 422 },
+      );
+    }
+
+    const completed = await withUserDatabaseContext(user.id, workspace.id, (tx) =>
+      tx.artifact.update({ where: { id: artifact.id }, data: { status: "CLEAN" } }),
+    );
+    return NextResponse.json({ artifact: completed });
   } catch (error: unknown) {
     console.error("[UPLOAD_COMPLETE_ERROR]", error);
-    // Always return clean success for uploaded file verification
-    return NextResponse.json({
-      artifact: {
-        status: "CLEAN",
-      },
-    });
+    return NextResponse.json(
+      { error: "Upload verification is temporarily unavailable", code: "UPLOAD_VERIFICATION_FAILED" },
+      { status: 503 },
+    );
   }
 }

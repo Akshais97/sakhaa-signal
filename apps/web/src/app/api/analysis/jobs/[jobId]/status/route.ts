@@ -6,6 +6,12 @@ export async function GET(_request: Request, context: { params: Promise<{ jobId:
     const { jobId } = await context.params;
     const access = await authorizeAnalysisJob(jobId);
     if ("error" in access) {
+      if (access.error === "database_unavailable") {
+        return NextResponse.json(
+          { error: "Job status is temporarily unavailable", code: "JOB_STATUS_UNAVAILABLE" },
+          { status: 503 },
+        );
+      }
       return NextResponse.json(
         { error: access.error === "unauthorized" ? "Unauthorized" : "Job not found" },
         { status: access.error === "unauthorized" ? 401 : 404 },
@@ -15,18 +21,16 @@ export async function GET(_request: Request, context: { params: Promise<{ jobId:
     const { job } = access;
     return NextResponse.json({
       id: job.id,
-      status: job.status || "RUNNING",
-      progressPercent: job.progressPercent ?? 20,
-      currentStage: job.currentStage || "DOWNLOAD_AND_VALIDATE",
+      status: job.status,
+      progressPercent: job.progressPercent,
+      currentStage: job.currentStage,
       errorMessage: job.errorMessage || null,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[GET_JOB_STATUS_ERROR]", error);
-    return NextResponse.json({
-      status: "RUNNING",
-      progressPercent: 20,
-      currentStage: "DOWNLOAD_AND_VALIDATE",
-      errorMessage: null,
-    });
+    return NextResponse.json(
+      { error: "Job status is temporarily unavailable", code: "JOB_STATUS_UNAVAILABLE" },
+      { status: 503 },
+    );
   }
 }

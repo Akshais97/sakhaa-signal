@@ -45,7 +45,29 @@ test("downloadToLocal retains the local simulator fallback for a genuine B2 404"
   try {
     await assert.rejects(
       adapter.downloadToLocal("workspaces/test/missing.mp4", path.join(tempDir, "input.mp4")),
-      /not found in S3\/B2 or local storage/,
+      /not found in Backblaze B2 or local storage/,
+    );
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("downloadToLocal aborts a stalled B2 request at the configured deadline", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "sakhaa-b2-adapter-"));
+  const adapter = new StorageAdapter({
+    provider: "b2",
+    downloadTimeoutMs: 20,
+    s3Client: {
+      send: async (_command, options) => new Promise((_resolve, reject) => {
+        options?.abortSignal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+      }),
+    },
+  });
+
+  try {
+    await assert.rejects(
+      adapter.downloadToLocal("workspaces/test/stalled.mp4", path.join(tempDir, "input.mp4")),
+      /download timed out/,
     );
   } finally {
     await rm(tempDir, { recursive: true, force: true });

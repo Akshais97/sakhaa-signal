@@ -1,3 +1,5 @@
+import { assertDatabaseConfiguration } from "./lib/database-url";
+
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs" || process.env.NODE_ENV !== "production") return;
 
@@ -19,4 +21,10 @@ export async function register() {
   if (missing.length) {
     throw new Error(`Missing required web environment variables: ${missing.join(", ")}`);
   }
+
+  assertDatabaseConfiguration({
+    databaseUrl: process.env.DATABASE_URL,
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL,
+    requireTransactionPooler: process.env.VERCEL === "1",
+  });
 }

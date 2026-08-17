@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 
 interface StaticReportProps {
   job: any;
 }
+
+const POLL_FAILURE_LIMIT = 3;
 
 // Icon Set
 type IconProps = React.SVGProps<SVGSVGElement>;
@@ -55,33 +57,43 @@ export default function StaticReport({ job: initialJob }: StaticReportProps) {
   const [selectedFinding, setSelectedFinding] = useState<any | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<any | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [pollError, setPollError] = useState<string | null>(null);
+  const pollFailures = useRef(0);
 
   // Polling while running
   useEffect(() => {
-    if (jobData.status === "SUCCEEDED" || jobData.status === "FAILED") {
+    if (jobData.status === "SUCCEEDED" || jobData.status === "FAILED" || pollError) {
       return;
     }
 
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`/api/analysis/jobs/${initialJob.id}/status`, { cache: "no-store" });
-        if (res.ok) {
-          const status = await res.json();
-          if (status.status === "SUCCEEDED") {
-            const reportRes = await fetch(`/api/analysis/jobs/${initialJob.id}/report`, { cache: "no-store" });
-            if (reportRes.ok) {
-              const { job: completedJob } = await reportRes.json();
-              setJobData(completedJob);
-            }
-          } else {
-            setJobData((current: any) => ({ ...current, ...status }));
-          }
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(payload.error || `Status request failed (${res.status})`);
         }
-      } catch (e) {}
+        pollFailures.current = 0;
+        if (payload.status === "SUCCEEDED") {
+          const reportRes = await fetch(`/api/analysis/jobs/${initialJob.id}/report`, { cache: "no-store" });
+          const reportPayload = await reportRes.json().catch(() => ({}));
+          if (!reportRes.ok) {
+            throw new Error(reportPayload.error || `Report request failed (${reportRes.status})`);
+          }
+          setJobData(reportPayload.job);
+        } else {
+          setJobData((current: any) => ({ ...current, ...payload }));
+        }
+      } catch (error) {
+        pollFailures.current += 1;
+        if (pollFailures.current >= POLL_FAILURE_LIMIT) {
+          setPollError(error instanceof Error ? error.message : "Analysis status is unavailable.");
+        }
+      }
     }, 1500);
 
     return () => clearInterval(interval);
-  }, [initialJob.id, jobData.status]);
+  }, [initialJob.id, jobData.status, pollError]);
 
   const report = jobData.reports?.[0]?.summaryJson || {};
   const categoryScores = (report.categoryScores && report.categoryScores.length > 0)
@@ -144,7 +156,7 @@ export default function StaticReport({ job: initialJob }: StaticReportProps) {
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  const isProcessing = jobData.status !== "SUCCEEDED" && jobData.status !== "FAILED";
+  const isProcessing = !pollError && jobData.status !== "SUCCEEDED" && jobData.status !== "FAILED";
 
   return (
     <div className="dashboard-canvas min-h-screen text-graphite-primary p-6 md:p-10 font-sans">
@@ -254,6 +266,21 @@ export default function StaticReport({ job: initialJob }: StaticReportProps) {
           </div>
         )}
 
+        {pollError && (
+          <div className="p-8 bg-[#1A1110] border border-[#F2786C]/40 rounded-md space-y-4 text-center">
+            <IconAlert className="h-8 w-8 mx-auto text-[#F2786C]" />
+            <h3 className="text-lg font-semibold text-[#F2786C]">Analysis status is unavailable</h3>
+            <p className="text-sm text-graphite-secondary font-mono">{pollError}</p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 text-sm font-medium bg-[#2E2B26] hover:bg-[#3A3630] border border-graphite-subtle rounded-md"
+            >
+              Retry status check
+            </button>
+          </div>
+        )}
+
         {/* Live Processing Screen */}
         {isProcessing && (
           <div className="p-8 bg-graphite-sunken border border-iris-primary/20 rounded-md text-center space-y-4">
@@ -276,7 +303,7 @@ export default function StaticReport({ job: initialJob }: StaticReportProps) {
         )}
 
         {/* Executive Summary Card */}
-        {!isProcessing && (
+        {!isProcessing && !pollError && (
           <div className="p-6 bg-graphite-sunken border border-iris-primary/20 rounded-md shadow-sm">
             <h2 className="text-base font-semibold text-iris-primary flex items-center gap-2">
               <IconChart className="w-5 h-5" />
@@ -289,7 +316,7 @@ export default function StaticReport({ job: initialJob }: StaticReportProps) {
         )}
 
         {/* Quick Wins Dedicated Action Card */}
-        {!isProcessing && quickWins.length > 0 && (
+        {!isProcessing && !pollError && quickWins.length > 0 && (
           <div className="p-6 bg-[#1A1816] border border-[#E8B84B]/30 rounded-md space-y-4 shadow-sm">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold text-[#E8B84B] flex items-center gap-2">
@@ -326,7 +353,7 @@ export default function StaticReport({ job: initialJob }: StaticReportProps) {
         )}
 
         {/* Main 2-Column Grid */}
-        {!isProcessing && (
+        {!isProcessing && !pollError && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
             {/* Left Column: Media Spec & Category Scores */}

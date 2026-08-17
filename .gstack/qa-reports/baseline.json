@@ -1,0 +1,24 @@
+{
+  "date": "2026-08-12",
+  "url": "http://127.0.0.1",
+  "healthScore": 100,
+  "issues": [
+    {
+      "id": "ISSUE-001",
+      "title": "Workspace resolution returned 503 before B2 presigning",
+      "severity": "critical",
+      "category": "functional",
+      "status": "verified"
+    }
+  ],
+  "categoryScores": {
+    "console": 100,
+    "links": 100,
+    "visual": 100,
+    "functional": 100,
+    "ux": 100,
+    "performance": 100,
+    "content": 100,
+    "accessibility": 100
+  }
+}

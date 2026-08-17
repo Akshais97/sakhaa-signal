@@ -69,6 +69,10 @@ const migrations = [
   {
     path: "packages/db/prisma/migrations/0016_signal_analysis/migration.sql",
     sentinel: "SELECT to_regclass('public.analysis_jobs') IS NOT NULL AND to_regclass('public.report_artifacts') IS NOT NULL AND (to_regclass('auth.users') IS NULL OR EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'sync_auth_user_to_public_users'))"
+  },
+  {
+    path: "packages/db/prisma/migrations/0017_server_auth_rls_context/migration.sql",
+    sentinel: "SELECT to_regprocedure('public.app_current_user_id()') IS NOT NULL AND EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'memberships' AND policyname = 'membership_select_own_workspace') AND EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'artifacts' AND policyname = 'artifacts_workspace_isolation')"
   }
 ];
 
@@ -83,7 +87,7 @@ const databaseUrl = process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL;
 
 if (!databaseUrl) {
   console.log(
-    "Migrations 0001-0016 dry-run: DIRECT_DATABASE_URL and DATABASE_URL are not set; migration SQL validated but not applied."
+    "Migrations 0001-0017 dry-run: DIRECT_DATABASE_URL and DATABASE_URL are not set; migration SQL validated but not applied."
   );
   process.exit(0);
 }
@@ -118,7 +122,7 @@ for (const migration of migrations) {
   }
 }
 
-console.log("Migrations 0001-0016 applied.");
+console.log("Migrations 0001-0017 applied.");
 
 function isMigrationApplied(psqlCommand, databaseUrl, sentinel) {
   const result = spawnSync(psqlCommand, [databaseUrl, "-t", "-A", "-v", "ON_ERROR_STOP=1", "-c", sentinel], {

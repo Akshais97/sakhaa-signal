@@ -3,6 +3,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 
+const POLL_FAILURE_LIMIT = 3;
+
 type IconProps = React.SVGProps<SVGSVGElement>;
 
 function renderTextValue(val: any): string {
@@ -120,26 +122,39 @@ export default function VideoReport({ job: initialJob }: { job: any }) {
   const [durationMs, setDurationMs] = useState(reportArtifact.inspection?.durationMs || 15000);
   const [isMuted, setIsMuted] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "timeline" | "findings" | "abVariants">("overview");
+  const [pollError, setPollError] = useState<string | null>(null);
+  const pollFailures = useRef(0);
 
   const jobStatus = job.status || "COMPLETED";
-  const isInProgress = jobStatus === "LEASED" || jobStatus === "RUNNING" || jobStatus === "CLAIMED" || jobStatus === "QUEUED";
+  const isInProgress = !pollError && (jobStatus === "LEASED" || jobStatus === "RUNNING" || jobStatus === "CLAIMED" || jobStatus === "QUEUED");
   const isFailed = jobStatus === "FAILED";
 
   // Auto-poll if job is currently running in background
   useEffect(() => {
     if (isInProgress) {
       const interval = setInterval(async () => {
-        const response = await fetch(`/api/analysis/jobs/${initialJob.id}/status`, { cache: "no-store" });
-        if (!response.ok) return;
-        const status = await response.json();
-        if (status.status === "SUCCEEDED") {
-          const reportResponse = await fetch(`/api/analysis/jobs/${initialJob.id}/report`, { cache: "no-store" });
-          if (reportResponse.ok) {
-            const { job: completedJob } = await reportResponse.json();
-            setJob(completedJob);
+        try {
+          const response = await fetch(`/api/analysis/jobs/${initialJob.id}/status`, { cache: "no-store" });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(payload.error || `Status request failed (${response.status})`);
           }
-        } else {
-          setJob((current: any) => ({ ...current, ...status }));
+          pollFailures.current = 0;
+          if (payload.status === "SUCCEEDED") {
+            const reportResponse = await fetch(`/api/analysis/jobs/${initialJob.id}/report`, { cache: "no-store" });
+            const reportPayload = await reportResponse.json().catch(() => ({}));
+            if (!reportResponse.ok) {
+              throw new Error(reportPayload.error || `Report request failed (${reportResponse.status})`);
+            }
+            setJob(reportPayload.job);
+          } else {
+            setJob((current: any) => ({ ...current, ...payload }));
+          }
+        } catch (error) {
+          pollFailures.current += 1;
+          if (pollFailures.current >= POLL_FAILURE_LIMIT) {
+            setPollError(error instanceof Error ? error.message : "Analysis status is unavailable.");
+          }
         }
       }, 4000);
       return () => clearInterval(interval);
@@ -225,6 +240,21 @@ export default function VideoReport({ job: initialJob }: { job: any }) {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 pt-8 space-y-8">
+        {pollError && (
+          <div className="bg-rose-950/40 border border-rose-800/60 rounded-2xl p-8 text-center space-y-4 max-w-2xl mx-auto my-12">
+            <IconAlertTriangle className="w-10 h-10 mx-auto text-rose-400" />
+            <h2 className="text-2xl font-bold text-white">Analysis status is unavailable</h2>
+            <p className="text-sm text-slate-300 font-mono">{pollError}</p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs"
+            >
+              Retry status check
+            </button>
+          </div>
+        )}
+
         {/* Analysis FAILED Error View */}
         {isFailed && (
           <div className="bg-rose-950/40 border border-rose-800/60 rounded-2xl p-8 shadow-2xl text-center space-y-4 max-w-2xl mx-auto my-12">
@@ -273,7 +303,7 @@ export default function VideoReport({ job: initialJob }: { job: any }) {
           </div>
         )}
 
-        {!isFailed && !isInProgress && (
+        {!isFailed && !isInProgress && !pollError && (
           <>
             {/* Top Banner Overview */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-gradient-to-br from-[#111827] via-[#0F172A] to-[#1E1B4B]/30 rounded-2xl border border-indigo-900/40 p-6 shadow-2xl relative overflow-hidden">

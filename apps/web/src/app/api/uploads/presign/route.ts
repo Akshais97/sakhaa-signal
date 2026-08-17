@@ -4,14 +4,36 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import crypto from "node:crypto";
 import prisma from "@/lib/db";
 import { getAuthenticatedSession } from "@/lib/auth";
+import { withUserDatabaseContext } from "@/lib/db-context";
 import { getB2Client, getQuarantineBucket, isB2Configured } from "@/lib/b2";
 import { validateUploadMetadata } from "@/lib/uploadSanitizer";
 
 export async function POST(req: NextRequest) {
   try {
-    const { user, workspace: ws } = await getAuthenticatedSession();
-    if (!user || !ws) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { user, workspace: ws, sessionError } = await getAuthenticatedSession();
+    if (!user) {
+      const authServiceUnavailable =
+        sessionError === "AUTH_CONFIGURATION_ERROR" ||
+        sessionError === "AUTH_PROVIDER_UNAVAILABLE";
+      return NextResponse.json(
+        {
+          error: authServiceUnavailable
+            ? "Authentication service is temporarily unavailable"
+            : "Unauthorized",
+          code: sessionError || "AUTH_SESSION_INVALID",
+        },
+        { status: authServiceUnavailable ? 503 : 401 },
+      );
+    }
+
+    if (!ws) {
+      return NextResponse.json(
+        {
+          error: "Workspace could not be resolved",
+          code: "WORKSPACE_RESOLUTION_FAILED",
+        },
+        { status: 503 },
+      );
     }
 
     const body = await req.json();
@@ -47,9 +69,8 @@ export async function POST(req: NextRequest) {
     const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
     const objectKey = `workspaces/${ws.id}/analyses/${artifactId}/${sanitizedFileName}`;
 
-    // Try creating DB artifact record if workspace is persisted
     try {
-      await prisma.artifact.create({
+      await withUserDatabaseContext(user.id, ws.id, (tx) => tx.artifact.create({
         data: {
           id: artifactId,
           workspaceId: ws.id,
@@ -63,9 +84,13 @@ export async function POST(req: NextRequest) {
           schemaVersion: "v1",
           objectKey,
         },
-      });
-    } catch (dbErr) {
-      console.warn("[PRESIGN DB ARTIFACT WARNING]", dbErr);
+      }));
+    } catch (error) {
+      console.error("[PRESIGN_ARTIFACT_PERSISTENCE_ERROR]", error);
+      return NextResponse.json(
+        { error: "Upload could not be initialized", code: "ARTIFACT_PERSISTENCE_FAILED" },
+        { status: 503 },
+      );
     }
 
     let uploadUrl: string;
@@ -96,10 +121,10 @@ export async function POST(req: NextRequest) {
       workspaceId: ws.id,
       expiresInSeconds: 15 * 60,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("[PRESIGN_UPLOAD_ERROR]", error);
     return NextResponse.json(
-      { error: "Failed to generate upload URL", details: error.message },
+      { error: "Failed to generate upload URL", code: "PRESIGN_UPLOAD_FAILED" },
       { status: 500 }
     );
   }

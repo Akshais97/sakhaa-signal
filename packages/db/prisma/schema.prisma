@@ -4,6 +4,7 @@
 generator client {
   provider = "prisma-client-js"
   output   = "../generated/client"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
@@ -1014,5 +1015,4 @@ model ReportShareLink {
   @@index([analysisJobId])
   @@map("report_share_links")
 }
-
 

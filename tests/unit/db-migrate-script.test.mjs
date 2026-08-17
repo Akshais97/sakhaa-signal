@@ -16,6 +16,8 @@ test("db migrate script loads API env and applies all retained migrations in ord
   const f5 = script.indexOf("0005_v0_f4_job_dead_letter_error_code");
   const p4 = script.indexOf("0014_v0_p4_scene_blueprints");
   const p5 = script.indexOf("0015_v0_p5_ready_blueprint_formula_prompt");
+  const analysis = script.indexOf("0016_signal_analysis");
+  const rlsRepair = script.indexOf("0017_server_auth_rls_context");
 
   assert.notEqual(f1, -1);
   assert.notEqual(f2, -1);
@@ -24,11 +26,15 @@ test("db migrate script loads API env and applies all retained migrations in ord
   assert.notEqual(f5, -1);
   assert.notEqual(p4, -1);
   assert.notEqual(p5, -1);
+  assert.notEqual(analysis, -1);
+  assert.notEqual(rlsRepair, -1);
   assert.ok(f1 < f2);
   assert.ok(f2 < f3);
   assert.ok(f3 < f4);
   assert.ok(f4 < f5);
   assert.ok(p4 < p5);
+  assert.ok(p5 < analysis);
+  assert.ok(analysis < rlsRepair);
 });
 
 test("db migrate script checks psql before passing secret database URLs", async () => {
@@ -53,5 +59,6 @@ test("db migrate script skips migrations whose sentinel table already exists", a
   assert.match(script, /to_regclass\('public\.users'\)/);
   assert.match(script, /to_regclass\('public\.jobs'\)/);
   assert.match(script, /to_regclass\('public\.formula_derivations'\)/);
+  assert.match(script, /to_regprocedure\('public\.app_current_user_id\(\)'\)/);
   assert.match(script, /Skipping already applied migration/);
 });
