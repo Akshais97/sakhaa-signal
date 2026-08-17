@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(import.meta.dirname, "../.."),
   outputFileTracingIncludes: {
     "/*": [
+      "./generated/client/libquery_engine-*.so.node",
       "../../packages/db/generated/client/libquery_engine-*.so.node",
       "../../packages/db/generated/client/schema.prisma",
     ],
