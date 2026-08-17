@@ -28,14 +28,20 @@ export interface VideoInspectionResult {
 }
 
 function getFfprobePath(): string {
-  if (process.env.FFPROBE_PATH && fs.existsSync(process.env.FFPROBE_PATH)) return process.env.FFPROBE_PATH;
+  if (process.env.FFPROBE_PATH) {
+    if (fs.existsSync(process.env.FFPROBE_PATH)) return process.env.FFPROBE_PATH;
+    throw new Error(`Configured FFPROBE_PATH does not exist: ${process.env.FFPROBE_PATH}`);
+  }
   const wingetBin = "C:\\Users\\askhai\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-8.1.2-full_build\\bin\\ffprobe.exe";
   if (fs.existsSync(wingetBin)) return wingetBin;
   return "ffprobe";
 }
 
 function getFfmpegPath(): string {
-  if (process.env.FFMPEG_PATH && fs.existsSync(process.env.FFMPEG_PATH)) return process.env.FFMPEG_PATH;
+  if (process.env.FFMPEG_PATH) {
+    if (fs.existsSync(process.env.FFMPEG_PATH)) return process.env.FFMPEG_PATH;
+    throw new Error(`Configured FFMPEG_PATH does not exist: ${process.env.FFMPEG_PATH}`);
+  }
   const wingetBin = "C:\\Users\\askhai\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-8.1.2-full_build\\bin\\ffmpeg.exe";
   if (fs.existsSync(wingetBin)) return wingetBin;
   return "ffmpeg";

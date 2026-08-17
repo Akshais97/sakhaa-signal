@@ -66,33 +66,56 @@ export default function StaticReport({ job: initialJob }: StaticReportProps) {
       return;
     }
 
-    const interval = setInterval(async () => {
+    let disposed = false;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const controller = new AbortController();
+
+    const poll = async () => {
       try {
-        const res = await fetch(`/api/analysis/jobs/${initialJob.id}/status`, { cache: "no-store" });
+        const res = await fetch(`/api/analysis/jobs/${initialJob.id}/status`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
         const payload = await res.json().catch(() => ({}));
         if (!res.ok) {
           throw new Error(payload.error || `Status request failed (${res.status})`);
         }
+        if (disposed) return;
         pollFailures.current = 0;
         if (payload.status === "SUCCEEDED") {
-          const reportRes = await fetch(`/api/analysis/jobs/${initialJob.id}/report`, { cache: "no-store" });
+          const reportRes = await fetch(`/api/analysis/jobs/${initialJob.id}/report`, {
+            cache: "no-store",
+            signal: controller.signal,
+          });
           const reportPayload = await reportRes.json().catch(() => ({}));
           if (!reportRes.ok) {
             throw new Error(reportPayload.error || `Report request failed (${reportRes.status})`);
           }
+          if (disposed) return;
           setJobData(reportPayload.job);
+          return;
         } else {
           setJobData((current: any) => ({ ...current, ...payload }));
         }
       } catch (error) {
+        if (disposed || (error instanceof DOMException && error.name === "AbortError")) return;
         pollFailures.current += 1;
         if (pollFailures.current >= POLL_FAILURE_LIMIT) {
           setPollError(error instanceof Error ? error.message : "Analysis status is unavailable.");
+          return;
         }
       }
-    }, 1500);
 
-    return () => clearInterval(interval);
+      if (!disposed) timeout = setTimeout(poll, 1500);
+    };
+
+    timeout = setTimeout(poll, 1500);
+
+    return () => {
+      disposed = true;
+      if (timeout) clearTimeout(timeout);
+      controller.abort();
+    };
   }, [initialJob.id, jobData.status, pollError]);
 
   const report = jobData.reports?.[0]?.summaryJson || {};
