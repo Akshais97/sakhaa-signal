@@ -158,14 +158,29 @@ test("upload completion proves the B2 object exists before marking the artifact 
 test("CPU execution stays on the durable lease poller and B2 downloads have a deadline", () => {
   const worker = source("workers/cpu/src/index.ts");
   const storage = source("workers/cpu/src/storage/b2-adapter.ts");
+  const railway = source("workers/cpu/railway.toml");
+  const dockerfile = source("workers/cpu/Dockerfile");
+  const dockerignore = source("workers/cpu/Dockerfile.dockerignore");
 
   assert.doesNotMatch(worker, /api\/cpu\/jobs\/run|Direct HTTP dispatch trigger/);
   assert.doesNotMatch(worker, /Access-Control-Allow-Origin/);
   assert.match(worker, /workerLoop\(\)/);
   assert.match(worker, /OBJECT_STORAGE_PROVIDER must be b2 or s3/);
+  assert.match(worker, /execFileSync\(executablePath, \["-version"\]/);
+  assert.match(worker, /does not point to an installed executable/);
   assert.match(storage, /STORAGE_DOWNLOAD_TIMEOUT_MS/);
   assert.match(storage, /abortSignal/);
   assert.doesNotMatch(storage, /fallbackPng|Generating valid fallback media/);
+
+  assert.match(railway, /builder = "DOCKERFILE"/);
+  assert.match(railway, /dockerfilePath = "workers\/cpu\/Dockerfile"/);
+  assert.doesNotMatch(railway, /^\[variables\]/m);
+  assert.match(dockerfile, /apt-get install[\s\S]*ffmpeg/);
+  assert.match(dockerignore, /^\*$/m);
+  assert.match(dockerignore, /^!packages\/engines\/\*\*$/m);
+  assert.match(dockerignore, /^!workers\/cpu\/\*\*$/m);
+  assert.match(dockerignore, /^\*\*\/node_modules$/m);
+  assert.match(dockerignore, /^\*\*\/generated$/m);
 });
 
 test("report polling surfaces repeated control-plane failures", () => {
@@ -176,6 +191,10 @@ test("report polling surfaces repeated control-plane failures", () => {
     const text = source(path);
     assert.match(text, /POLL_FAILURE_LIMIT/, path);
     assert.match(text, /pollError/, path);
+    assert.match(text, /new AbortController\(\)/, path);
+    assert.match(text, /signal: controller\.signal/, path);
+    assert.match(text, /setTimeout\(poll,/, path);
+    assert.doesNotMatch(text, /setInterval\(async/, path);
     assert.doesNotMatch(text, /if \(!response\.ok\) return;/, path);
   }
 });

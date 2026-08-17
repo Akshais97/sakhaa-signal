@@ -132,32 +132,55 @@ export default function VideoReport({ job: initialJob }: { job: any }) {
   // Auto-poll if job is currently running in background
   useEffect(() => {
     if (isInProgress) {
-      const interval = setInterval(async () => {
+      let disposed = false;
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      const controller = new AbortController();
+
+      const poll = async () => {
         try {
-          const response = await fetch(`/api/analysis/jobs/${initialJob.id}/status`, { cache: "no-store" });
+          const response = await fetch(`/api/analysis/jobs/${initialJob.id}/status`, {
+            cache: "no-store",
+            signal: controller.signal,
+          });
           const payload = await response.json().catch(() => ({}));
           if (!response.ok) {
             throw new Error(payload.error || `Status request failed (${response.status})`);
           }
+          if (disposed) return;
           pollFailures.current = 0;
           if (payload.status === "SUCCEEDED") {
-            const reportResponse = await fetch(`/api/analysis/jobs/${initialJob.id}/report`, { cache: "no-store" });
+            const reportResponse = await fetch(`/api/analysis/jobs/${initialJob.id}/report`, {
+              cache: "no-store",
+              signal: controller.signal,
+            });
             const reportPayload = await reportResponse.json().catch(() => ({}));
             if (!reportResponse.ok) {
               throw new Error(reportPayload.error || `Report request failed (${reportResponse.status})`);
             }
+            if (disposed) return;
             setJob(reportPayload.job);
+            return;
           } else {
             setJob((current: any) => ({ ...current, ...payload }));
           }
         } catch (error) {
+          if (disposed || (error instanceof DOMException && error.name === "AbortError")) return;
           pollFailures.current += 1;
           if (pollFailures.current >= POLL_FAILURE_LIMIT) {
             setPollError(error instanceof Error ? error.message : "Analysis status is unavailable.");
+            return;
           }
         }
-      }, 4000);
-      return () => clearInterval(interval);
+
+        if (!disposed) timeout = setTimeout(poll, 4000);
+      };
+
+      timeout = setTimeout(poll, 4000);
+      return () => {
+        disposed = true;
+        if (timeout) clearTimeout(timeout);
+        controller.abort();
+      };
     }
   }, [initialJob.id, isInProgress]);
 

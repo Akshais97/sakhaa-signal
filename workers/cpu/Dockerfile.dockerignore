@@ -1,0 +1,29 @@
+# Keep the CPU-worker build context independent of local datasets, media,
+# generated reports, and the large TribeV2 GPU package in this workspace.
+*
+
+!package.json
+!pnpm-workspace.yaml
+!pnpm-lock.yaml
+!turbo.json
+!packages/
+!packages/db/
+!packages/db/**
+!packages/contracts/
+!packages/contracts/**
+!packages/engines/
+!packages/engines/**
+!workers/
+!workers/cpu/
+!workers/cpu/**
+
+**/node_modules
+**/.next
+**/dist
+**/generated
+**/coverage
+**/__pycache__
+**/.pytest_cache
+**/.turbo
+**/*.log
+**/*.tsbuildinfo

@@ -2,6 +2,8 @@ import "dotenv/config";
 import dotenv from "dotenv";
 import path from "node:path";
 import os from "node:os";
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { stat, readFile, rm } from "node:fs/promises";
 import { ANALYSIS_STAGE } from "@sakhaa-forge/contracts";
 
@@ -39,6 +41,18 @@ function validateProductionEnvironment() {
   if (missing.length) throw new Error(`Missing required worker environment variables: ${missing.join(", ")}`);
   if (!['b2', 's3'].includes(process.env.OBJECT_STORAGE_PROVIDER!.toLowerCase())) {
     throw new Error("OBJECT_STORAGE_PROVIDER must be b2 or s3 in production");
+  }
+
+  for (const variableName of ["FFMPEG_PATH", "FFPROBE_PATH"] as const) {
+    const executablePath = process.env[variableName]!;
+    if (!existsSync(executablePath)) {
+      throw new Error(`${variableName} does not point to an installed executable: ${executablePath}`);
+    }
+    try {
+      execFileSync(executablePath, ["-version"], { stdio: "ignore", timeout: 10_000 });
+    } catch {
+      throw new Error(`${variableName} is not executable: ${executablePath}`);
+    }
   }
 }
 

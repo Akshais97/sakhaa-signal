@@ -1,13 +1,8 @@
 [build]
-builder = "RAILPACK"
-buildCommand = "pnpm --filter signal-cpu-worker build"
+builder = "DOCKERFILE"
+dockerfilePath = "workers/cpu/Dockerfile"
 
 [deploy]
 startCommand = "pnpm --filter signal-cpu-worker start"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 5
-
-[variables]
-RAILPACK_DEPLOY_APT_PACKAGES = "ffmpeg"
-FFMPEG_PATH = "/usr/bin/ffmpeg"
-FFPROBE_PATH = "/usr/bin/ffprobe"
